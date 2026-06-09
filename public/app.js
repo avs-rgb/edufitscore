@@ -11,6 +11,7 @@ const teacherTopControls = document.querySelector('#teacher-top-controls');
 const studentCountSelect = document.querySelector('#student-count');
 const teacherCalculateButton = document.querySelector('#teacher-calculate');
 const downloadCsvButton = document.querySelector('#download-csv');
+const shareWhatsappButton = document.querySelector('#share-whatsapp');
 const teacherEntryTable = document.querySelector('#teacher-entry-table');
 const teacherResultsTable = document.querySelector('#teacher-results-table');
 
@@ -267,6 +268,32 @@ function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
+function shareWhatsapp() {
+  const sheet = selectedSheet();
+
+  if (!latestTeacherResults.length) {
+    return;
+  }
+
+  const lines = [
+    `thgymscore - כיתה ${sheet.name}`,
+    '',
+    ...latestTeacherResults.map((student) => {
+      const scores = sheet.metrics
+        .map((metric) => {
+          const metricResult = student.results.find((item) => item.key === metric.key);
+          return `${metric.label}: ${metricResult?.result?.score ?? ''}`;
+        })
+        .join(', ');
+
+      return `${student.studentName} | ${scores} | ממוצע: ${student.averageScore ?? ''}`;
+    }),
+  ];
+
+  const url = `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 function renderTeacherView() {
   renderTeacherEntryTable();
   resetTeacherResults();
@@ -359,6 +386,7 @@ async function init() {
   scoreForm.addEventListener('submit', calculateScore);
   teacherCalculateButton.addEventListener('click', calculateTeacherScores);
   downloadCsvButton.addEventListener('click', downloadCsv);
+  shareWhatsappButton.addEventListener('click', shareWhatsapp);
   teacherEntryTable.addEventListener('keydown', handleTeacherEntryKeydown);
   studentTabButton.addEventListener('click', () => setActiveView('student'));
   teacherTabButton.addEventListener('click', () => setActiveView('teacher'));

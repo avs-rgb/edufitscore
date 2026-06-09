@@ -161,6 +161,16 @@ p {
   min-width: 180px;
 }
 
+.teacher-results-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.whatsapp-button {
+  background: #c48a5a;
+}
+
 .teacher-layout {
   display: flex;
   flex-direction: row;
@@ -367,6 +377,12 @@ tbody tr:nth-child(5n + 1) {
   .teacher-panel-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .teacher-results-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
   }
 
   .teacher-layout {
