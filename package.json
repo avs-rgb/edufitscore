@@ -1,0 +1,18 @@
+{
+  "name": "thgymscore",
+  "version": "1.0.0",
+  "description": "thgymscore deployment-ready scoring website",
+  "main": "server.js",
+  "scripts": {
+    "build:data": "node scripts/build-data.js data/source/score.xlsx",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "xlsx": "^0.18.5"
+  }
+}

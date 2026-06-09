@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>thgymscore</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">thgymscore</p>
+        <h1>מחשבון ציונים לפי שכבה</h1>
+        <p class="subtitle">בחרו כיתה, עברו בין מצב תלמידים למצב מורים, והשתמשו בטבלאות המקור כדי להמיר תוצאות לציונים.</p>
+      </section>
+
+      <section class="top-controls">
+        <section class="tabs-panel">
+          <section class="tabs" aria-label="מצבי שימוש">
+            <button id="student-tab-button" class="tab-button is-active" type="button">מצב תלמידים</button>
+            <button id="teacher-tab-button" class="tab-button" type="button">מצב מורים</button>
+          </section>
+
+          <section class="panel class-selector-panel">
+            <label class="field-label" for="sheet-select">בחירת כיתה</label>
+            <select id="sheet-select" class="class-select"></select>
+          </section>
+        </section>
+
+        <section id="teacher-top-controls" class="teacher-top-controls teacher-only-controls is-hidden">
+          <section class="panel teacher-student-count-panel">
+            <label class="field-label" for="student-count">מספר תלמידים</label>
+            <select id="student-count"></select>
+          </section>
+        </section>
+      </section>
+
+      <section id="student-view" class="view-panel">
+        <section class="layout">
+          <form id="score-form" class="panel form-panel"></form>
+          <section class="panel results-panel">
+            <h2>תוצאות</h2>
+            <div id="average-score" class="average-score">עדיין לא חושב ציון</div>
+            <div id="results-list" class="results-list"></div>
+          </section>
+        </section>
+
+        <section class="panel table-panel">
+          <h2>הטבלה הראשית</h2>
+          <div id="table-container" class="table-container"></div>
+        </section>
+      </section>
+
+      <section id="teacher-view" class="view-panel is-hidden">
+        <section class="teacher-layout">
+          <section class="panel teacher-entry-panel">
+            <div class="teacher-panel-header">
+              <h2>הזנת תוצאות</h2>
+              <button id="teacher-calculate" type="button" class="teacher-panel-button">המרת ציונים לכל הכיתה</button>
+            </div>
+            <div id="teacher-entry-table" class="table-container"></div>
+          </section>
+
+          <section class="panel teacher-results-panel">
+            <div class="teacher-panel-header">
+              <h2>טבלת תוצאות מומרות</h2>
+              <button id="download-csv" type="button" class="secondary-button teacher-panel-button">הורדת CSV</button>
+            </div>
+            <div id="teacher-results-table" class="table-container"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+  </html>
