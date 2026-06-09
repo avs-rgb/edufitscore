@@ -285,7 +285,7 @@ function shareWhatsapp() {
             return null;
           }
 
-          return `${metric.label}: ${metricResult.result.score}`;
+          return `${metric.label} - ${metricResult.result.score}`;
         })
         .filter(Boolean);
 
