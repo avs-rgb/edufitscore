@@ -275,19 +275,42 @@ function shareWhatsapp() {
     return;
   }
 
-  const headers = ['תלמיד', ...sheet.metrics.map((metric) => metric.label), 'ממוצע'];
+  const studentLines = latestTeacherResults
+    .map((student) => {
+      const visibleScores = sheet.metrics
+        .map((metric) => {
+          const metricResult = student.results.find((item) => item.key === metric.key);
+
+          if (!metricResult?.result) {
+            return null;
+          }
+
+          return `${metric.label}: ${metricResult.result.score}`;
+        })
+        .filter(Boolean);
+
+      if (!visibleScores.length) {
+        return null;
+      }
+
+      const parts = [student.studentName, ...visibleScores];
+
+      if (visibleScores.length > 1 && student.averageScore !== null) {
+        parts.push(`ממוצע: ${student.averageScore}`);
+      }
+
+      return parts.join(' | ');
+    })
+    .filter(Boolean);
+
+  if (!studentLines.length) {
+    return;
+  }
+
   const lines = [
     `thgymscore - כיתה ${sheet.name}`,
     '',
-    headers.join(' | '),
-    ...latestTeacherResults.map((student) => [
-      student.studentName,
-      ...sheet.metrics.map((metric) => {
-        const metricResult = student.results.find((item) => item.key === metric.key);
-        return metricResult?.result?.score ?? '';
-      }),
-      student.averageScore ?? '',
-    ].join(' | ')),
+    ...studentLines,
   ];
 
   const url = `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
