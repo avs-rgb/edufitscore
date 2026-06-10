@@ -97,8 +97,8 @@ p {
 .class-selector-panel {
   display: flex;
   flex-direction: column;
-  width: 154px;
-  min-height: 286px;
+  width: 326px;
+  min-height: 120px;
   justify-content: center;
 }
 
@@ -239,7 +239,7 @@ p {
 
 .class-tabs {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
 }
 
@@ -260,7 +260,7 @@ p {
 }
 
 .class-tab {
-  min-height: 36px;
+  min-height: 40px;
   border-radius: 16px;
   background: #f1dccb;
   color: #6b4333;
@@ -557,6 +557,14 @@ tbody tr:nth-child(5n + 1) {
   .top-controls,
   .tabs-panel {
     flex-direction: column;
+  }
+
+  .class-selector-panel {
+    width: 100%;
+  }
+
+  .class-tabs {
+    grid-template-columns: 1fr 1fr;
   }
 
   .top-bar {
