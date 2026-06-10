@@ -14,6 +14,7 @@ const teacherView = document.querySelector('#teacher-view');
 const teacherTopControls = document.querySelector('#teacher-top-controls');
 const teacherMaleTabButton = document.querySelector('#teacher-male-tab-button');
 const teacherFemaleTabButton = document.querySelector('#teacher-female-tab-button');
+const teacherStudentCountLabel = document.querySelector('#teacher-student-count-label');
 const studentCountSelect = document.querySelector('#student-count');
 const teacherCalculateButton = document.querySelector('#teacher-calculate');
 const downloadCsvButton = document.querySelector('#download-csv');
@@ -63,6 +64,7 @@ function activeTeacherGender() {
 function syncTeacherGenderTabs() {
   teacherMaleTabButton.classList.toggle('is-active', activeTeacherGenderValue === 'male');
   teacherFemaleTabButton.classList.toggle('is-active', activeTeacherGenderValue === 'female');
+  teacherStudentCountLabel.textContent = activeTeacherGenderValue === 'female' ? 'מספר תלמידות' : 'מספר תלמידים';
 }
 
 function formatCompactEntry(seconds) {
