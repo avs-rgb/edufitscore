@@ -40,6 +40,10 @@ body {
   margin-bottom: 24px;
 }
 
+.hero h1 {
+  text-align: center;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #b06f4f;
