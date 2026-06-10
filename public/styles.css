@@ -289,6 +289,16 @@ tbody tr:nth-child(5n + 1) {
   background: #f9ecdf;
 }
 
+.teacher-entry-panel tbody tr:nth-child(5n),
+.teacher-results-panel tbody tr:nth-child(5n) {
+  background: #f9ecdf;
+}
+
+.teacher-entry-panel tbody tr:nth-child(5n + 1),
+.teacher-results-panel tbody tr:nth-child(5n + 1) {
+  background: transparent;
+}
+
 .teacher-entry-table input {
   min-width: 56px;
   width: 56px;
