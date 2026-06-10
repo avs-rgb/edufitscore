@@ -30,6 +30,20 @@ let activeTeacherGenderValue = 'male';
 let latestTeacherResults = [];
 let latestStudentResult = null;
 
+function formatClassName(name) {
+  const value = String(name || '').trim();
+
+  if (value.length === 1) {
+    return `${value}'`;
+  }
+
+  if (value.length === 2) {
+    return `${value[0]}"${value[1]}`;
+  }
+
+  return value;
+}
+
 function activeStudentLabel() {
   return activeView === 'student_female' ? 'תלמידה' : 'תלמיד';
 }
@@ -95,7 +109,7 @@ function renderClassTabs() {
         type="button"
         class="class-tab${sheet.id === sheetSelect.value ? ' is-active' : ''}"
         data-sheet-id="${sheet.id}"
-      >${sheet.name}</button>
+      >${formatClassName(sheet.name)}</button>
     `)
     .join('');
 }
@@ -184,7 +198,7 @@ function shareStudentWhatsapp() {
   }
 
   const lines = [
-    `thgymscore - כיתה ${sheet.name}`,
+    `thgymscore - כיתה ${formatClassName(sheet.name)}`,
     '',
     parts.join(', '),
   ];
@@ -276,7 +290,7 @@ function collectTeacherStudents() {
   const studentCount = Number(studentCountSelect.value);
 
   return Array.from({ length: studentCount }, (_, studentIndex) => ({
-    studentName: `${activeTeacherStudentLabel()} ${studentIndex + 1}`,
+      studentName: `${activeTeacherStudentLabel()} ${studentIndex + 1}`,
     values: Object.fromEntries(sheet.metrics.map((metric) => {
       const input = teacherEntryTable.querySelector(`[data-student-index="${studentIndex}"][data-metric-key="${metric.key}"]`);
       return [metric.key, input?.value || ''];
@@ -350,7 +364,7 @@ function downloadCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `results-${sheet.name}.csv`;
+  link.download = `results-${formatClassName(sheet.name)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -397,7 +411,7 @@ function shareWhatsapp() {
   }
 
   const lines = [
-    `thgymscore - כיתה ${sheet.name}`,
+    `thgymscore - כיתה ${formatClassName(sheet.name)}`,
     '',
     ...studentLines,
   ];
@@ -494,7 +508,7 @@ async function init() {
   };
 
   sheetSelect.innerHTML = sheetSets.male
-    .map((sheet) => `<option value="${sheet.id}">${sheet.name}</option>`)
+    .map((sheet) => `<option value="${sheet.id}">${formatClassName(sheet.name)}</option>`)
     .join('');
 
   createStudentOptions();
