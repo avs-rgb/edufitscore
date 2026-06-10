@@ -407,6 +407,8 @@ button:hover {
 .form-panel input {
   max-width: 140px;
   min-height: 44px;
+  display: block;
+  margin: 0 auto;
 }
 
 .form-panel button {
