@@ -5,6 +5,7 @@ const resultsList = document.querySelector('#results-list');
 const studentShareWhatsappButton = document.querySelector('#student-share-whatsapp');
 const shareSiteWhatsappButton = document.querySelector('#share-site-whatsapp');
 const tableContainer = document.querySelector('#table-container');
+const classTabsContainer = document.querySelector('#class-tabs');
 const maleStudentTabButton = document.querySelector('#male-student-tab-button');
 const femaleStudentTabButton = document.querySelector('#female-student-tab-button');
 const teacherTabButton = document.querySelector('#teacher-tab-button');
@@ -85,6 +86,18 @@ function createStudentOptions() {
     const selected = value === 10 ? ' selected' : '';
     return `<option value="${value}"${selected}>${value}</option>`;
   }).join('');
+}
+
+function renderClassTabs() {
+  classTabsContainer.innerHTML = sheetSets.male
+    .map((sheet) => `
+      <button
+        type="button"
+        class="class-tab${sheet.id === sheetSelect.value ? ' is-active' : ''}"
+        data-sheet-id="${sheet.id}"
+      >${sheet.name}</button>
+    `)
+    .join('');
 }
 
 function renderMainTable(sheet) {
@@ -465,6 +478,7 @@ function handleTeacherEntryKeydown(event) {
 }
 
 function renderCurrentView() {
+  renderClassTabs();
   renderStudentForm();
   latestStudentResult = null;
   renderStudentResults({ results: [], averageScore: null });
@@ -489,6 +503,16 @@ async function init() {
   syncTeacherGenderTabs();
 
   sheetSelect.addEventListener('change', renderCurrentView);
+  classTabsContainer.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-sheet-id]');
+
+    if (!button) {
+      return;
+    }
+
+    sheetSelect.value = button.dataset.sheetId;
+    renderCurrentView();
+  });
   studentCountSelect.addEventListener('change', renderTeacherView);
   scoreForm.addEventListener('submit', calculateScore);
   studentShareWhatsappButton.addEventListener('click', shareStudentWhatsapp);
