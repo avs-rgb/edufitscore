@@ -299,6 +299,10 @@ tbody tr:nth-child(5n + 1) {
   background: transparent;
 }
 
+.score-55-row {
+  background: #dbeafe !important;
+}
+
 .teacher-entry-table input {
   min-width: 56px;
   width: 56px;

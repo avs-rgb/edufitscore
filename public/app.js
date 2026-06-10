@@ -67,7 +67,7 @@ function renderMainTable(sheet) {
       </thead>
       <tbody>
         ${sheet.table.rows.map((row) => `
-          <tr>
+          <tr class="${String(row[0]).trim() === '55' ? 'score-55-row' : ''}">
             ${row.map((cell) => `<td>${cell}</td>`).join('')}
           </tr>
         `).join('')}
