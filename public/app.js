@@ -3,6 +3,7 @@ const scoreForm = document.querySelector('#score-form');
 const averageScore = document.querySelector('#average-score');
 const resultsList = document.querySelector('#results-list');
 const studentShareWhatsappButton = document.querySelector('#student-share-whatsapp');
+const shareSiteWhatsappButton = document.querySelector('#share-site-whatsapp');
 const tableContainer = document.querySelector('#table-container');
 const studentTabButton = document.querySelector('#student-tab-button');
 const teacherTabButton = document.querySelector('#teacher-tab-button');
@@ -147,6 +148,12 @@ function shareStudentWhatsapp() {
   ];
 
   const url = `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function shareSiteWhatsapp() {
+  const message = `check your gym score ${window.location.href}`;
+  const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
@@ -449,6 +456,7 @@ async function init() {
   studentCountSelect.addEventListener('change', renderTeacherView);
   scoreForm.addEventListener('submit', calculateScore);
   studentShareWhatsappButton.addEventListener('click', shareStudentWhatsapp);
+  shareSiteWhatsappButton.addEventListener('click', shareSiteWhatsapp);
   teacherCalculateButton.addEventListener('click', calculateTeacherScores);
   downloadCsvButton.addEventListener('click', downloadCsv);
   shareWhatsappButton.addEventListener('click', shareWhatsapp);
