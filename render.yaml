@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: thgymscore
+    name: edufitscore
     env: node
     plan: free
     buildCommand: npm install

@@ -1,4 +1,4 @@
-# thgymscore
+# EduFitScore
 
 Deployment-ready scoring site for student and teacher gym score conversion.
 

@@ -200,7 +200,7 @@ function shareStudentWhatsapp() {
   }
 
   const lines = [
-    `thgymscore - כיתה ${formatClassName(sheet.name)}`,
+    `EduFitScore - כיתה ${formatClassName(sheet.name)}`,
     '',
     parts.join(', '),
   ];
@@ -413,7 +413,7 @@ function shareWhatsapp() {
   }
 
   const lines = [
-    `thgymscore - כיתה ${formatClassName(sheet.name)}`,
+    `EduFitScore - כיתה ${formatClassName(sheet.name)}`,
     '',
     ...studentLines,
   ];
