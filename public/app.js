@@ -37,6 +37,32 @@ let latestTeacherResults = [];
 let latestStudentResult = null;
 let currentEntryMode = 'home';
 
+function parseRouteHash() {
+  const hash = window.location.hash.replace('#', '');
+
+  if (hash === 'guest') {
+    return 'guest';
+  }
+
+  if (hash === 'member') {
+    return 'member';
+  }
+
+  return 'home';
+}
+
+function updateRoute(mode, replace = false) {
+  const targetHash = mode === 'home' ? '' : `#${mode}`;
+  const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
+
+  if (replace) {
+    window.history.replaceState({ mode }, '', nextUrl);
+    return;
+  }
+
+  window.history.pushState({ mode }, '', nextUrl);
+}
+
 function formatClassName(name) {
   const value = String(name || '').trim();
 
@@ -85,6 +111,20 @@ function setEntryMode(mode) {
   maleStudentTabButton.classList.toggle('is-hidden', memberMode);
   femaleStudentTabButton.classList.toggle('is-hidden', memberMode);
   teacherTabButton.classList.toggle('is-hidden', guestMode || memberMode);
+}
+
+function applyRoute(mode, replace = false) {
+  setEntryMode(mode);
+
+  if (mode === 'guest') {
+    setActiveView('student_male');
+    renderCurrentView();
+  } else if (mode === 'member') {
+    setActiveView('teacher');
+    renderCurrentView();
+  }
+
+  updateRoute(mode, replace);
 }
 
 function formatCompactEntry(seconds) {
@@ -540,7 +580,7 @@ async function init() {
   createStudentOptions();
   renderCurrentView();
   setActiveView('student_male');
-  setEntryMode('home');
+  applyRoute(parseRouteHash(), true);
   syncTeacherGenderTabs();
 
   sheetSelect.addEventListener('change', renderCurrentView);
@@ -585,17 +625,25 @@ async function init() {
     renderTeacherView();
   });
   guestEntryButton.addEventListener('click', () => {
-    setEntryMode('guest');
-    setActiveView('student_male');
-    renderCurrentView();
+    applyRoute('guest');
   });
   memberEntryButton.addEventListener('click', () => {
-    setEntryMode('member');
-    setActiveView('teacher');
-    renderCurrentView();
+    applyRoute('member');
   });
   backHomeButton.addEventListener('click', () => {
-    setEntryMode('home');
+    applyRoute('home');
+  });
+  window.addEventListener('popstate', () => {
+    const mode = parseRouteHash();
+    setEntryMode(mode);
+
+    if (mode === 'guest') {
+      setActiveView('student_male');
+      renderCurrentView();
+    } else if (mode === 'member') {
+      setActiveView('teacher');
+      renderCurrentView();
+    }
   });
 }
 
