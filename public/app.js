@@ -8,7 +8,20 @@ const homeView = document.querySelector('#home-view');
 const appShell = document.querySelector('#app-shell');
 const guestEntryButton = document.querySelector('#guest-entry-button');
 const memberEntryButton = document.querySelector('#member-entry-button');
-const backHomeButton = document.querySelector('#back-home-button');
+const topHomeButton = document.querySelector('#top-home-button');
+const heroHomeButton = document.querySelector('#hero-home-button');
+const privacyButton = document.querySelector('#privacy-button');
+const privacyView = document.querySelector('#privacy-view');
+const privacyCloseButton = document.querySelector('#privacy-close-button');
+const termsButton = document.querySelector('#terms-button');
+const termsView = document.querySelector('#terms-view');
+const termsCloseButton = document.querySelector('#terms-close-button');
+const accessibilityButton = document.querySelector('#accessibility-button');
+const accessibilityView = document.querySelector('#accessibility-view');
+const accessibilityCloseButton = document.querySelector('#accessibility-close-button');
+const contactButton = document.querySelector('#contact-button');
+const contactView = document.querySelector('#contact-view');
+const contactCloseButton = document.querySelector('#contact-close-button');
 const tableContainer = document.querySelector('#table-container');
 const classTabsContainer = document.querySelector('#class-tabs');
 const maleStudentTabButton = document.querySelector('#male-student-tab-button');
@@ -36,6 +49,14 @@ let activeTeacherGenderValue = 'male';
 let latestTeacherResults = [];
 let latestStudentResult = null;
 let currentEntryMode = 'home';
+let previousEntryMode = 'home';
+
+const staticViews = {
+  privacy: privacyView,
+  terms: termsView,
+  accessibility: accessibilityView,
+  contact: contactView,
+};
 
 function parseRouteHash() {
   const hash = window.location.hash.replace('#', '');
@@ -46,6 +67,22 @@ function parseRouteHash() {
 
   if (hash === 'member') {
     return 'member';
+  }
+
+  if (hash === 'privacy') {
+    return 'privacy';
+  }
+
+  if (hash === 'terms') {
+    return 'terms';
+  }
+
+  if (hash === 'accessibility') {
+    return 'accessibility';
+  }
+
+  if (hash === 'contact') {
+    return 'contact';
   }
 
   return 'home';
@@ -100,10 +137,16 @@ function syncTeacherGenderTabs() {
 }
 
 function setEntryMode(mode) {
+  if (!staticViews[mode]) {
+    previousEntryMode = mode;
+  }
+
   currentEntryMode = mode;
   homeView.classList.toggle('is-hidden', mode !== 'home');
-  appShell.classList.toggle('is-hidden', mode === 'home');
-  backHomeButton.classList.toggle('is-hidden', mode === 'home');
+  appShell.classList.toggle('is-hidden', mode === 'home' || Boolean(staticViews[mode]));
+  Object.entries(staticViews).forEach(([key, view]) => {
+    view.classList.toggle('is-hidden', mode !== key);
+  });
 
   const guestMode = mode === 'guest';
   const memberMode = mode === 'member';
@@ -630,8 +673,39 @@ async function init() {
   memberEntryButton.addEventListener('click', () => {
     applyRoute('member');
   });
-  backHomeButton.addEventListener('click', () => {
+  topHomeButton.addEventListener('click', () => {
     applyRoute('home');
+  });
+  heroHomeButton.addEventListener('click', () => {
+    applyRoute('home');
+  });
+  privacyButton.addEventListener('click', () => {
+    updateRoute('privacy');
+    setEntryMode('privacy');
+  });
+  privacyCloseButton.addEventListener('click', () => {
+    applyRoute(previousEntryMode || 'home');
+  });
+  termsButton.addEventListener('click', () => {
+    updateRoute('terms');
+    setEntryMode('terms');
+  });
+  termsCloseButton.addEventListener('click', () => {
+    applyRoute(previousEntryMode || 'home');
+  });
+  accessibilityButton.addEventListener('click', () => {
+    updateRoute('accessibility');
+    setEntryMode('accessibility');
+  });
+  accessibilityCloseButton.addEventListener('click', () => {
+    applyRoute(previousEntryMode || 'home');
+  });
+  contactButton.addEventListener('click', () => {
+    updateRoute('contact');
+    setEntryMode('contact');
+  });
+  contactCloseButton.addEventListener('click', () => {
+    applyRoute(previousEntryMode || 'home');
   });
   window.addEventListener('popstate', () => {
     const mode = parseRouteHash();
