@@ -10,10 +10,140 @@ body {
   line-height: 1.45;
 }
 
+body.accessibility-readable-font {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body.accessibility-grayscale {
+  filter: grayscale(1);
+}
+
+body.accessibility-high-contrast {
+  background: #fff !important;
+  color: #111 !important;
+}
+
+body.accessibility-high-contrast .panel,
+body.accessibility-high-contrast .hero,
+body.accessibility-high-contrast .top-controls,
+body.accessibility-high-contrast table,
+body.accessibility-high-contrast .home-card,
+body.accessibility-high-contrast .privacy-card {
+  background: #fff !important;
+  color: #111 !important;
+  border-color: #111 !important;
+  box-shadow: none !important;
+}
+
+body.accessibility-high-contrast button,
+body.accessibility-high-contrast select,
+body.accessibility-high-contrast input {
+  background: #fff !important;
+  color: #111 !important;
+  border: 2px solid #111 !important;
+}
+
+body.accessibility-negative-contrast {
+  background: #111 !important;
+  color: #fff !important;
+}
+
+body.accessibility-negative-contrast .panel,
+body.accessibility-negative-contrast .hero,
+body.accessibility-negative-contrast .top-controls,
+body.accessibility-negative-contrast table,
+body.accessibility-negative-contrast .home-card,
+body.accessibility-negative-contrast .privacy-card {
+  background: #1d1d1d !important;
+  color: #fff !important;
+  border-color: #fff !important;
+  box-shadow: none !important;
+}
+
+body.accessibility-negative-contrast button,
+body.accessibility-negative-contrast select,
+body.accessibility-negative-contrast input {
+  background: #1d1d1d !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;
+}
+
+body.accessibility-underline-links a,
+body.accessibility-underline-links button {
+  text-decoration: underline !important;
+  font-weight: 800 !important;
+}
+
+.accessibility-fab {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 40;
+  width: auto;
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: #2f6fed;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(47, 111, 237, 0.28);
+}
+
+.accessibility-toolbar {
+  position: fixed;
+  top: 66px;
+  right: 14px;
+  z-index: 41;
+  width: min(320px, calc(100vw - 28px));
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid #d9c4b0;
+  background: rgba(255, 250, 244, 0.98);
+  box-shadow: 0 18px 34px rgba(80, 47, 31, 0.18);
+}
+
+.accessibility-toolbar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.accessibility-toolbar-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.accessibility-tool-button {
+  min-height: 42px;
+  background: #f1dccb;
+  color: #6b4333;
+  border: 1px solid rgba(160, 106, 78, 0.18);
+  border-radius: 14px;
+}
+
+.accessibility-reset-button {
+  background: #8f5a44;
+  color: #fff;
+}
+
 .page {
   max-width: 1500px;
   margin: 0 auto;
   padding: 28px 28px 40px;
+}
+
+html {
+  font-size: calc(16px * var(--accessibility-text-scale, 1));
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-size: 1rem;
 }
 
 .page::before {
@@ -29,7 +159,7 @@ body {
 .site-credit {
   text-align: left;
   color: #9a7a67;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .top-bar {
@@ -65,7 +195,7 @@ body {
 
 .hero h1 {
   text-align: center;
-  font-size: 46px;
+  font-size: 2.875rem;
   line-height: 1.15;
   letter-spacing: -0.02em;
   margin-bottom: 12px;
@@ -80,7 +210,7 @@ body {
   border: 0;
   box-shadow: none;
   text-align: center;
-  font-size: 46px;
+  font-size: 2.875rem;
   line-height: 1.15;
   letter-spacing: -0.02em;
   margin-bottom: 12px;
@@ -95,7 +225,7 @@ body {
 .eyebrow {
   margin: 0 0 8px;
   color: #b06f4f;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 h1,
@@ -107,7 +237,7 @@ p {
 .subtitle {
   max-width: none;
   color: #7a5a4c;
-  font-size: 15px;
+  font-size: 0.9375rem;
   text-align: center;
   margin: 0 auto;
 }
@@ -180,7 +310,7 @@ p {
 
 .home-action-button {
   min-height: 180px;
-  font-size: 18px;
+  font-size: 1.125rem;
   border-radius: 18px;
 }
 
@@ -283,7 +413,7 @@ p {
   background: #f1dccb;
   color: #6b4333;
   min-height: 36px;
-  font-size: 14px;
+  font-size: 0.875rem;
   border-radius: 16px;
   border: 1px solid rgba(160, 106, 78, 0.14);
   font-weight: 700;
@@ -359,7 +489,7 @@ p {
   background: #f1dccb;
   color: #6b4333;
   border: 1px solid rgba(160, 106, 78, 0.14);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -375,7 +505,7 @@ p {
   background: #f1dccb;
   color: #6b4333;
   border: 1px solid rgba(160, 106, 78, 0.14);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -446,7 +576,7 @@ p {
   font-weight: 700;
   min-height: 22px;
   color: #5a372c;
-  font-size: 15px;
+  font-size: 0.9375rem;
   text-align: center;
 }
 
@@ -464,7 +594,7 @@ button {
 }
 
 select {
-  font-size: 14px;
+  font-size: 0.875rem;
   text-align: center;
   text-align-last: center;
 }
@@ -529,7 +659,7 @@ button:hover {
 .metric-meta {
   margin: 10px 0 0;
   color: #8a6a5b;
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-align: center;
 }
 
@@ -603,7 +733,7 @@ tbody tr:nth-child(5n + 1) {
 .teacher-results-panel th,
 .teacher-results-panel td {
   padding: 8px 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   white-space: nowrap;
 }
 
@@ -652,7 +782,7 @@ tbody tr:nth-child(5n + 1) {
   border-radius: 18px;
   background: #8f5a44;
   color: #ffffff;
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 700;
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
@@ -689,6 +819,17 @@ tbody tr:nth-child(5n + 1) {
     align-items: stretch;
   }
 
+  .accessibility-fab {
+    top: 10px;
+    right: 10px;
+  }
+
+  .accessibility-toolbar {
+    top: 58px;
+    right: 10px;
+    width: calc(100vw - 20px);
+  }
+
   .top-bar-actions {
     flex-wrap: wrap;
     justify-content: stretch;
@@ -704,7 +845,7 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .hero h1 {
-    font-size: 34px;
+    font-size: 2.125rem;
   }
 
   .teacher-top-controls {

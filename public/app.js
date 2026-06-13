@@ -22,6 +22,17 @@ const accessibilityCloseButton = document.querySelector('#accessibility-close-bu
 const contactButton = document.querySelector('#contact-button');
 const contactView = document.querySelector('#contact-view');
 const contactCloseButton = document.querySelector('#contact-close-button');
+const accessibilityFab = document.querySelector('#accessibility-fab');
+const accessibilityToolbar = document.querySelector('#accessibility-toolbar');
+const accessibilityToolbarClose = document.querySelector('#accessibility-toolbar-close');
+const accessibilityTextPlusButton = document.querySelector('#accessibility-text-plus');
+const accessibilityTextMinusButton = document.querySelector('#accessibility-text-minus');
+const accessibilityReadableFontButton = document.querySelector('#accessibility-readable-font');
+const accessibilityUnderlineLinksButton = document.querySelector('#accessibility-underline-links');
+const accessibilityGrayscaleButton = document.querySelector('#accessibility-grayscale');
+const accessibilityHighContrastButton = document.querySelector('#accessibility-high-contrast');
+const accessibilityNegativeContrastButton = document.querySelector('#accessibility-negative-contrast');
+const accessibilityResetButton = document.querySelector('#accessibility-reset');
 const tableContainer = document.querySelector('#table-container');
 const classTabsContainer = document.querySelector('#class-tabs');
 const maleStudentTabButton = document.querySelector('#male-student-tab-button');
@@ -50,6 +61,7 @@ let latestTeacherResults = [];
 let latestStudentResult = null;
 let currentEntryMode = 'home';
 let previousEntryMode = 'home';
+let accessibilityTextScale = 1;
 
 const staticViews = {
   privacy: privacyView,
@@ -134,6 +146,36 @@ function syncTeacherGenderTabs() {
   teacherMaleTabButton.classList.toggle('is-active', activeTeacherGenderValue === 'male');
   teacherFemaleTabButton.classList.toggle('is-active', activeTeacherGenderValue === 'female');
   teacherStudentCountLabel.textContent = activeTeacherGenderValue === 'female' ? 'מספר תלמידות' : 'מספר תלמידים';
+}
+
+function toggleBodyClass(className) {
+  document.body.classList.toggle(className);
+}
+
+function applyAccessibilityTextScale() {
+  document.documentElement.style.setProperty('--accessibility-text-scale', String(accessibilityTextScale));
+}
+
+function openAccessibilityToolbar() {
+  accessibilityToolbar.classList.remove('is-hidden');
+  accessibilityFab.setAttribute('aria-expanded', 'true');
+}
+
+function closeAccessibilityToolbar() {
+  accessibilityToolbar.classList.add('is-hidden');
+  accessibilityFab.setAttribute('aria-expanded', 'false');
+}
+
+function resetAccessibilitySettings() {
+  accessibilityTextScale = 1;
+  applyAccessibilityTextScale();
+  document.body.classList.remove(
+    'accessibility-readable-font',
+    'accessibility-underline-links',
+    'accessibility-grayscale',
+    'accessibility-high-contrast',
+    'accessibility-negative-contrast'
+  );
 }
 
 function setEntryMode(mode) {
@@ -707,6 +749,34 @@ async function init() {
   contactCloseButton.addEventListener('click', () => {
     applyRoute(previousEntryMode || 'home');
   });
+  accessibilityFab.addEventListener('click', () => {
+    if (accessibilityToolbar.classList.contains('is-hidden')) {
+      openAccessibilityToolbar();
+    } else {
+      closeAccessibilityToolbar();
+    }
+  });
+  accessibilityToolbarClose.addEventListener('click', closeAccessibilityToolbar);
+  accessibilityTextPlusButton.addEventListener('click', () => {
+    accessibilityTextScale = Math.min(1.4, accessibilityTextScale + 0.1);
+    applyAccessibilityTextScale();
+  });
+  accessibilityTextMinusButton.addEventListener('click', () => {
+    accessibilityTextScale = Math.max(0.85, accessibilityTextScale - 0.1);
+    applyAccessibilityTextScale();
+  });
+  accessibilityReadableFontButton.addEventListener('click', () => toggleBodyClass('accessibility-readable-font'));
+  accessibilityUnderlineLinksButton.addEventListener('click', () => toggleBodyClass('accessibility-underline-links'));
+  accessibilityGrayscaleButton.addEventListener('click', () => toggleBodyClass('accessibility-grayscale'));
+  accessibilityHighContrastButton.addEventListener('click', () => {
+    document.body.classList.remove('accessibility-negative-contrast');
+    toggleBodyClass('accessibility-high-contrast');
+  });
+  accessibilityNegativeContrastButton.addEventListener('click', () => {
+    document.body.classList.remove('accessibility-high-contrast');
+    toggleBodyClass('accessibility-negative-contrast');
+  });
+  accessibilityResetButton.addEventListener('click', resetAccessibilitySettings);
   window.addEventListener('popstate', () => {
     const mode = parseRouteHash();
     setEntryMode(mode);
@@ -719,6 +789,7 @@ async function init() {
       renderCurrentView();
     }
   });
+  applyAccessibilityTextScale();
 }
 
 init();
