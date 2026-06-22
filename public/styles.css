@@ -2034,14 +2034,14 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .accessibility-fab {
-    top: 10px;
+    top: 156px;
     right: 10px;
     min-height: 48px;
     padding: 10px 16px;
   }
 
   .accessibility-toolbar {
-    top: 66px;
+    top: 212px;
     right: 10px;
     width: calc(100vw - 20px);
   }
