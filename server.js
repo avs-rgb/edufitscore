@@ -64,10 +64,14 @@ function sessionCookieOptions(expiresAt) {
   };
 }
 
-function attachUser(request, response, next) {
-  const token = request.cookies?.edufitscore_session;
-  request.authUser = findUserBySessionToken(token);
-  next();
+async function attachUser(request, response, next) {
+  try {
+    const token = request.cookies?.edufitscore_session;
+    request.authUser = await findUserBySessionToken(token);
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 function requireAuth(request, response, next) {
@@ -128,7 +132,7 @@ app.get('/api/sheets', (request, response) => {
   });
 });
 
-app.post('/api/graph-snapshots', (request, response) => {
+app.post('/api/graph-snapshots', async (request, response) => {
   const snapshot = request.body?.snapshot;
 
   if (!snapshot || !Array.isArray(snapshot.entries) || !Array.isArray(snapshot.series)) {
@@ -137,12 +141,12 @@ app.post('/api/graph-snapshots', (request, response) => {
   }
 
   const id = crypto.randomBytes(6).toString('base64url');
-  saveGraphSnapshot(id, snapshot);
+  await saveGraphSnapshot(id, snapshot);
   response.status(201).json({ id });
 });
 
-app.get('/api/graph-snapshots/:id', (request, response) => {
-  const snapshot = getGraphSnapshot(request.params.id);
+app.get('/api/graph-snapshots/:id', async (request, response) => {
+  const snapshot = await getGraphSnapshot(request.params.id);
 
   if (!snapshot) {
     response.status(404).json({ error: 'SNAPSHOT_NOT_FOUND' });
@@ -156,21 +160,21 @@ app.get('/api/auth/me', (request, response) => {
   response.json({ user: request.authUser || null });
 });
 
-app.post('/api/auth/login', (request, response) => {
+app.post('/api/auth/login', async (request, response) => {
   const { email, password } = request.body || {};
-  const user = verifyUser(email, password);
+  const user = await verifyUser(email, password);
 
   if (!user) {
     response.status(401).json({ error: 'Invalid email or password' });
     return;
   }
 
-  const session = createSession(user.id);
+  const session = await createSession(user.id);
   response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
   response.json({ user });
 });
 
-app.post('/api/auth/signup', (request, response) => {
+app.post('/api/auth/signup', async (request, response) => {
   const { firstName, lastName, email, phone, city, schoolName, password, passwordRepeat } = request.body || {};
 
   if (password !== passwordRepeat) {
@@ -179,8 +183,8 @@ app.post('/api/auth/signup', (request, response) => {
   }
 
   try {
-    const user = createUser({ firstName, lastName, email, phone, city, schoolName, password });
-    const session = createSession(user.id);
+    const user = await createUser({ firstName, lastName, email, phone, city, schoolName, password });
+    const session = await createSession(user.id);
     response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
     response.status(201).json({ user });
   } catch (error) {
@@ -213,7 +217,7 @@ app.post('/api/auth/forgot-password', async (request, response) => {
   const neutralResponse = { ok: true };
 
   try {
-    const reset = createPasswordResetToken(email);
+    const reset = await createPasswordResetToken(email);
 
     if (reset) {
       const resetUrl = `${publicBaseUrl}/#reset-password?token=${encodeURIComponent(reset.token)}`;
@@ -241,7 +245,7 @@ app.post('/api/auth/forgot-password', async (request, response) => {
   response.json(neutralResponse);
 });
 
-app.post('/api/auth/reset-password', (request, response) => {
+app.post('/api/auth/reset-password', async (request, response) => {
   const { token, newPassword, newPasswordRepeat } = request.body || {};
 
   if (!newPassword || newPassword !== newPasswordRepeat) {
@@ -250,7 +254,7 @@ app.post('/api/auth/reset-password', (request, response) => {
   }
 
   try {
-    resetPasswordWithToken(token, newPassword);
+    await resetPasswordWithToken(token, newPassword);
     response.clearCookie('edufitscore_session', { path: '/' });
     response.json({ ok: true });
   } catch (error) {
@@ -258,15 +262,15 @@ app.post('/api/auth/reset-password', (request, response) => {
   }
 });
 
-app.post('/api/auth/logout', (request, response) => {
-  deleteSession(request.cookies?.edufitscore_session);
+app.post('/api/auth/logout', async (request, response) => {
+  await deleteSession(request.cookies?.edufitscore_session);
   response.clearCookie('edufitscore_session', { path: '/' });
   response.json({ ok: true });
 });
 
-app.put('/api/auth/profile', requireAuth, (request, response) => {
+app.put('/api/auth/profile', requireAuth, async (request, response) => {
   try {
-    const user = updateUserProfile(request.authUser.id, request.body || {});
+    const user = await updateUserProfile(request.authUser.id, request.body || {});
     response.json({ user });
   } catch (error) {
     if (error.message === 'EMAIL_EXISTS') {
@@ -283,7 +287,7 @@ app.put('/api/auth/profile', requireAuth, (request, response) => {
   }
 });
 
-app.put('/api/auth/password', requireAuth, (request, response) => {
+app.put('/api/auth/password', requireAuth, async (request, response) => {
   const { oldPassword, newPassword, newPasswordRepeat } = request.body || {};
 
   if (!newPassword || newPassword !== newPasswordRepeat) {
@@ -292,7 +296,7 @@ app.put('/api/auth/password', requireAuth, (request, response) => {
   }
 
   try {
-    changeUserPassword(request.authUser.id, oldPassword, newPassword);
+    await changeUserPassword(request.authUser.id, oldPassword, newPassword);
     response.json({ ok: true });
   } catch (error) {
     if (error.message === 'INVALID_PASSWORD') {
@@ -304,9 +308,9 @@ app.put('/api/auth/password', requireAuth, (request, response) => {
   }
 });
 
-app.post('/api/auth/deactivate', requireAuth, (request, response) => {
+app.post('/api/auth/deactivate', requireAuth, async (request, response) => {
   try {
-    deactivateUser(request.authUser.id, request.body?.password);
+    await deactivateUser(request.authUser.id, request.body?.password);
     response.clearCookie('edufitscore_session', { path: '/' });
     response.json({ ok: true });
   } catch (error) {
@@ -331,51 +335,51 @@ app.get('/api/admin/overview', requireAuth, (request, response) => {
   });
 });
 
-app.get('/api/admin/inactive-users', requireAuth, (request, response) => {
+app.get('/api/admin/inactive-users', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  response.json({ users: listInactiveUsers() });
+  response.json({ users: await listInactiveUsers() });
 });
 
-app.get('/api/admin/users', requireAuth, (request, response) => {
+app.get('/api/admin/users', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  response.json({ users: listUsers() });
+  response.json({ users: await listUsers() });
 });
 
-app.get('/api/admin/audit-log', requireAuth, (request, response) => {
+app.get('/api/admin/audit-log', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  response.json({ entries: listAdminAuditLog(50) });
+  response.json({ entries: await listAdminAuditLog(50) });
 });
 
-app.get('/api/admin/backup', requireAuth, (request, response) => {
+app.get('/api/admin/backup', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  logAdminAction(request.authUser.id, null, 'export_backup');
-  response.json(exportBackupData());
+  await logAdminAction(request.authUser.id, null, 'export_backup');
+  response.json(await exportBackupData());
 });
 
-app.post('/api/admin/backup/restore', requireAuth, (request, response) => {
+app.post('/api/admin/backup/restore', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
   try {
-    const summary = restoreBackupData(request.body?.backup, request.authUser.id);
+    const summary = await restoreBackupData(request.body?.backup, request.authUser.id);
     response.json({ ok: true, summary });
   } catch (error) {
     console.error('Backup restore failed:', error);
@@ -383,24 +387,24 @@ app.post('/api/admin/backup/restore', requireAuth, (request, response) => {
   }
 });
 
-app.get('/api/admin/diagnostics', requireAuth, (request, response) => {
+app.get('/api/admin/diagnostics', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  response.json({ diagnostics: getAdminDiagnostics() });
+  response.json({ diagnostics: await getAdminDiagnostics() });
 });
 
-app.post('/api/admin/restore-user', requireAuth, (request, response) => {
+app.post('/api/admin/restore-user', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
   try {
-    const user = restoreUserByEmail(request.body?.email);
-    logAdminAction(request.authUser.id, user.id, 'restore_user', { email: user.email });
+    const user = await restoreUserByEmail(request.body?.email);
+    await logAdminAction(request.authUser.id, user.id, 'restore_user', { email: user.email });
     response.json({ user });
   } catch (error) {
     if (error.message === 'USER_NOT_FOUND') {
@@ -412,7 +416,7 @@ app.post('/api/admin/restore-user', requireAuth, (request, response) => {
   }
 });
 
-app.patch('/api/admin/users/:userId/status', requireAuth, (request, response) => {
+app.patch('/api/admin/users/:userId/status', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
@@ -427,8 +431,8 @@ app.patch('/api/admin/users/:userId/status', requireAuth, (request, response) =>
   }
 
   try {
-    const user = setUserActive(userId, isActive);
-    logAdminAction(request.authUser.id, userId, isActive ? 'enable_user' : 'disable_user', { email: user.email });
+    const user = await setUserActive(userId, isActive);
+    await logAdminAction(request.authUser.id, userId, isActive ? 'enable_user' : 'disable_user', { email: user.email });
     response.json({ user });
   } catch (error) {
     if (error.message === 'USER_NOT_FOUND') {
@@ -440,7 +444,7 @@ app.patch('/api/admin/users/:userId/status', requireAuth, (request, response) =>
   }
 });
 
-app.post('/api/admin/users/:userId/reset-password', requireAuth, (request, response) => {
+app.post('/api/admin/users/:userId/reset-password', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
@@ -465,8 +469,8 @@ app.post('/api/admin/users/:userId/reset-password', requireAuth, (request, respo
   }
 
   try {
-    const user = adminResetUserPassword(userId, newPassword, request.cookies?.edufitscore_session);
-    logAdminAction(request.authUser.id, userId, 'reset_password', { email: user.email });
+    const user = await adminResetUserPassword(userId, newPassword, request.cookies?.edufitscore_session);
+    await logAdminAction(request.authUser.id, userId, 'reset_password', { email: user.email });
     response.json({ user, temporaryPassword: generateTemporary ? newPassword : '' });
   } catch (error) {
     if (error.message === 'USER_NOT_FOUND') {
@@ -483,23 +487,23 @@ app.post('/api/admin/users/:userId/reset-password', requireAuth, (request, respo
   }
 });
 
-app.get('/api/teacher/classes', requireTeacherOrAdmin, (request, response) => {
-  response.json({ classes: listTeacherClasses(request.authUser.id) });
+app.get('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
+  response.json({ classes: await listTeacherClasses(request.authUser.id) });
 });
 
-app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, (request, response) => {
-  const teacherClass = getTeacherClass(request.authUser.id, Number(request.params.classId));
+app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (request, response) => {
+  const teacherClass = await getTeacherClass(request.authUser.id, Number(request.params.classId));
 
   if (!teacherClass) {
     response.status(404).json({ error: 'Class not found' });
     return;
   }
 
-  response.json({ history: listTeacherClassHistory(teacherClass.id) });
+  response.json({ history: await listTeacherClassHistory(teacherClass.id) });
 });
 
-app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrAdmin, (request, response) => {
-  const deleted = deleteTeacherClassHistory(
+app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrAdmin, async (request, response) => {
+  const deleted = await deleteTeacherClassHistory(
     request.authUser.id,
     Number(request.params.classId),
     Number(request.params.historyId)
@@ -513,9 +517,9 @@ app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrA
   response.json({ ok: true });
 });
 
-app.post('/api/teacher/classes', requireTeacherOrAdmin, (request, response) => {
+app.post('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
   try {
-    const created = createTeacherClass(request.authUser.id, request.body || {});
+    const created = await createTeacherClass(request.authUser.id, request.body || {});
     response.status(201).json({ teacherClass: created });
   } catch (error) {
     if (error.message === 'CLASS_LIMIT_REACHED') {
@@ -527,13 +531,13 @@ app.post('/api/teacher/classes', requireTeacherOrAdmin, (request, response) => {
   }
 });
 
-app.put('/api/teacher/classes/reorder', requireTeacherOrAdmin, (request, response) => {
+app.put('/api/teacher/classes/reorder', requireTeacherOrAdmin, async (request, response) => {
   const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds.map(Number) : [];
-  response.json({ classes: reorderTeacherClasses(request.authUser.id, orderedIds) });
+  response.json({ classes: await reorderTeacherClasses(request.authUser.id, orderedIds) });
 });
 
-app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, (request, response) => {
-  const updated = updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
+app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, response) => {
+  const updated = await updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
 
   if (!updated) {
     response.status(404).json({ error: 'Class not found' });
@@ -543,8 +547,8 @@ app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, (request, respon
   response.json({ teacherClass: updated });
 });
 
-app.delete('/api/teacher/classes/:classId', requireTeacherOrAdmin, (request, response) => {
-  const deleted = deleteTeacherClass(request.authUser.id, Number(request.params.classId));
+app.delete('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, response) => {
+  const deleted = await deleteTeacherClass(request.authUser.id, Number(request.params.classId));
 
   if (!deleted) {
     response.status(404).json({ error: 'Class not found' });
@@ -567,7 +571,7 @@ app.post('/api/score', (request, response) => {
   response.json(buildScoreResponse(sheet, values));
 });
 
-app.post('/api/bulk-score', requireAuth, (request, response) => {
+app.post('/api/bulk-score', requireAuth, async (request, response) => {
   const { sheetId, students, gender, classId } = request.body || {};
   const sheets = resolveSheets(gender);
   const sheet = sheets.find((item) => item.id === sheetId);
@@ -600,7 +604,7 @@ app.post('/api/bulk-score', requireAuth, (request, response) => {
   };
 
   if (classId) {
-    appendClassHistory(Number(classId), 'calculated', {
+    await appendClassHistory(Number(classId), 'calculated', {
       studentCount: normalizedStudents.length,
       rawStudents: normalizedStudents,
       students: responseBody.students.map((student) => ({
