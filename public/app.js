@@ -143,6 +143,7 @@ const teacherHistoryDateRange = document.querySelector('#teacher-history-date-ra
 const teacherHistorySelectedDate = document.querySelector('#teacher-history-selected-date');
 const teacherHistoryGraph = document.querySelector('#teacher-history-graph');
 const teacherHistoryRecordsButton = document.querySelector('#teacher-history-records');
+const teacherHistoryRefreshButton = document.querySelector('#teacher-history-refresh');
 const teacherHistoryRecordsWhatsappButton = document.querySelector('#teacher-history-records-whatsapp');
 const teacherHistoryRecordsCsvButton = document.querySelector('#teacher-history-records-csv');
 const teacherClassViewToggleButton = document.querySelector('#teacher-class-view-toggle');
@@ -1320,6 +1321,21 @@ async function refreshTeacherClasses() {
   }
 
   renderTeacherClassList();
+}
+
+async function refreshCurrentTeacherHistory() {
+  const classId = activeTeacherClassId;
+  await refreshTeacherClasses();
+
+  if (!classId) {
+    return;
+  }
+
+  const refreshedClass = teacherClasses.find((teacherClass) => teacherClass.id === classId);
+  if (refreshedClass) {
+    loadTeacherClassIntoWorkspace(refreshedClass);
+    setTeacherSubview('history', false);
+  }
 }
 
 async function createTeacherClassFromForm(event) {
@@ -3338,6 +3354,7 @@ async function init() {
     teacherClassForm.addEventListener('keydown', handleTeacherNameKeydown);
   }
   if (teacherRefreshClassesButton) { teacherRefreshClassesButton.addEventListener('click', refreshTeacherClasses); }
+  if (teacherHistoryRefreshButton) { teacherHistoryRefreshButton.addEventListener('click', refreshCurrentTeacherHistory); }
   if (teacherClassViewToggleButton) {
     teacherClassViewToggleButton.addEventListener('click', () => {
       teacherClassListView = teacherClassListView === 'cards' ? 'list' : 'cards';
