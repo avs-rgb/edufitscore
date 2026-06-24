@@ -446,7 +446,15 @@ function currentStudentNameForHistory(studentName, studentIndex) {
 
 function formatHistoryDateTime(value) {
   const date = new Date(value);
-  return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+  return {
+    date: date.toLocaleDateString('he-IL'),
+    time: date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+function renderHistoryDateTime(value) {
+  const parts = formatHistoryDateTime(value);
+  return `<span class="history-date-time"><span>${parts.date}</span><span>${parts.time}</span></span>`;
 }
 
 function renderTeacherHistoryEntry() {
@@ -468,14 +476,18 @@ function renderTeacherHistoryEntry() {
 
   const oldest = teacherHistoryEntries[0];
   const newest = teacherHistoryEntries[teacherHistoryEntries.length - 1];
-  teacherHistoryDateRange.textContent = `${formatHistoryDateTime(oldest.createdAt)} - ${formatHistoryDateTime(newest.createdAt)}`;
+  teacherHistoryDateRange.innerHTML = `
+    ${renderHistoryDateTime(oldest.createdAt)}
+    <span class="history-date-range-separator">-</span>
+    ${renderHistoryDateTime(newest.createdAt)}
+  `;
   teacherHistoryRange.min = '0';
   teacherHistoryRange.max = String(teacherHistoryEntries.length - 1);
   teacherHistoryRange.value = String(selectedTeacherHistoryIndex);
 
   const entry = teacherHistoryEntries[selectedTeacherHistoryIndex];
   teacherHistorySelectedDate.innerHTML = `
-    <span>רשומה נבחרת: ${formatHistoryDateTime(entry.createdAt)}</span>
+    <span class="history-selected-label">רשומה נבחרת: ${renderHistoryDateTime(entry.createdAt)}</span>
     <button type="button" class="back-home-button ${teacherHistoryEditMode ? 'is-editing-button' : ''}" data-edit-history-entry>${teacherHistoryEditMode ? 'סיום עריכה' : 'עריכה'}</button>
     ${teacherHistoryEditMode ? `<button type="button" class="danger-button teacher-history-delete-button" data-delete-history-id="${entry.id}">מחיקת רשומה</button>` : ''}
   `;

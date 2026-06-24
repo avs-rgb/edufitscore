@@ -1568,6 +1568,34 @@ p {
   font-weight: 700;
 }
 
+.teacher-history-date-range {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.history-date-time {
+  display: inline-grid;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.history-date-time span {
+  display: block;
+}
+
+.history-date-range-separator {
+  align-self: center;
+}
+
+.history-selected-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .teacher-history-selected-date {
   display: flex;
   align-items: center;
