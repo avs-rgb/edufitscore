@@ -926,6 +926,27 @@ p {
       "students"
       "chart";
   }
+
+  .history-graph-students {
+    justify-items: stretch;
+    overflow: hidden;
+  }
+
+  .history-graph-student-actions {
+    justify-content: flex-end;
+  }
+
+  .history-graph-student {
+    justify-content: flex-start;
+    flex-direction: row-reverse;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .history-graph-student span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .profile-card {
