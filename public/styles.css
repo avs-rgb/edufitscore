@@ -2263,27 +2263,33 @@ tbody tr:nth-child(5n + 1) {
   }
 
   #teacher-class-view-toggle {
-    order: 1;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   #teacher-new-class-button {
-    order: 2;
+    grid-column: 2;
+    grid-row: 1;
   }
 
   #teacher-refresh-classes {
-    order: 3;
+    grid-column: 3;
+    grid-row: 1;
   }
 
   #teacher-class-sort-field {
-    order: 4;
+    grid-column: 1;
+    grid-row: 2;
   }
 
   #teacher-class-sort-direction {
-    order: 5;
+    grid-column: 2;
+    grid-row: 2;
   }
 
   #teacher-edit-classes-button {
-    order: 6;
+    grid-column: 3;
+    grid-row: 2;
   }
 
   .teacher-results-actions {
