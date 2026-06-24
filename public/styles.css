@@ -2232,6 +2232,21 @@ tbody tr:nth-child(5n + 1) {
     align-items: stretch;
   }
 
+  #teacher-history-view .teacher-panel-header .teacher-entry-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  #teacher-history-view .teacher-panel-header .teacher-entry-actions .back-home-button,
+  #teacher-history-view .teacher-panel-header .teacher-entry-actions .teacher-panel-button {
+    width: 100%;
+    min-width: 0;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
   .teacher-results-actions {
     flex-direction: column;
     align-items: stretch;
