@@ -436,6 +436,11 @@ function currentStudentNameForHistory(studentName, studentIndex) {
   return teacherRoster[studentIndex]?.name || studentName || '';
 }
 
+function formatHistoryDateTime(value) {
+  const date = new Date(value);
+  return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function renderTeacherHistoryEntry() {
   teacherHistoryMode = 'entry';
   teacherHistoryRecordsButton?.classList.remove('is-editing-button');
@@ -455,14 +460,14 @@ function renderTeacherHistoryEntry() {
 
   const oldest = teacherHistoryEntries[0];
   const newest = teacherHistoryEntries[teacherHistoryEntries.length - 1];
-  teacherHistoryDateRange.textContent = `${new Date(oldest.createdAt).toLocaleString('he-IL')} - ${new Date(newest.createdAt).toLocaleString('he-IL')}`;
+  teacherHistoryDateRange.textContent = `${formatHistoryDateTime(oldest.createdAt)} - ${formatHistoryDateTime(newest.createdAt)}`;
   teacherHistoryRange.min = '0';
   teacherHistoryRange.max = String(teacherHistoryEntries.length - 1);
   teacherHistoryRange.value = String(selectedTeacherHistoryIndex);
 
   const entry = teacherHistoryEntries[selectedTeacherHistoryIndex];
   teacherHistorySelectedDate.innerHTML = `
-    <span>רשומה נבחרת: ${new Date(entry.createdAt).toLocaleString('he-IL')}</span>
+    <span>רשומה נבחרת: ${formatHistoryDateTime(entry.createdAt)}</span>
     <button type="button" class="danger-button teacher-history-delete-button" data-delete-history-id="${entry.id}">מחיקת רשומה</button>
   `;
 
