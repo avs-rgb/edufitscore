@@ -238,6 +238,42 @@ textarea {
   justify-content: flex-end;
 }
 
+#share-site-whatsapp {
+  order: 1;
+}
+
+#member-profile-button {
+  order: 2;
+}
+
+#top-home-button {
+  order: 3;
+}
+
+#admin-nav-button {
+  order: 4;
+}
+
+#privacy-button {
+  order: 5;
+}
+
+#terms-button {
+  order: 6;
+}
+
+#accessibility-button {
+  order: 7;
+}
+
+#contact-button {
+  order: 8;
+}
+
+#member-logout-button {
+  order: 9;
+}
+
 #member-logout-button,
 #admin-logout-button {
   background: #b44236;
@@ -2093,6 +2129,30 @@ tbody tr:nth-child(5n + 1) {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  #share-site-whatsapp {
+    order: 1;
+  }
+
+  #top-home-button {
+    order: 2;
+  }
+
+  #member-logout-button {
+    order: 3;
+  }
+
+  #member-profile-button {
+    order: 4;
+  }
+
+  #privacy-button {
+    order: 5;
+  }
+
+  #contact-button {
+    order: 6;
   }
 
   .top-bar-actions .back-home-button,
