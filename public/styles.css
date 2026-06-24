@@ -884,13 +884,25 @@ p {
 }
 
 .history-graph-student {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   font-weight: 800;
-  justify-content: flex-start;
   white-space: nowrap;
   font-size: 0.92rem;
+}
+
+.history-graph-student input {
+  width: auto;
+  min-width: 18px;
+  justify-self: start;
+}
+
+.history-graph-student span {
+  justify-self: end;
+  min-width: 0;
+  text-align: right;
 }
 
 .history-graph-student span::before {
@@ -937,8 +949,6 @@ p {
   }
 
   .history-graph-student {
-    justify-content: flex-start;
-    flex-direction: row-reverse;
     min-width: 0;
     text-align: right;
   }
