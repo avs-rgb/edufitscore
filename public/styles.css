@@ -885,9 +885,9 @@ p {
 
 .history-graph-student {
   display: flex;
-  flex-direction: row;
+  flex-direction: row-reverse;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 10px;
   font-weight: 800;
   white-space: nowrap;
