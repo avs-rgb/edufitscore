@@ -2029,26 +2029,86 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .top-bar {
-    flex-direction: column-reverse;
+    display: grid;
+    grid-template-columns: 1fr;
     align-items: stretch;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .top-bar-left,
+  .top-bar-right {
+    min-width: 0;
+    width: 100%;
   }
 
   .accessibility-fab {
-    top: 156px;
+    top: 188px;
     right: 10px;
     min-height: 48px;
     padding: 10px 16px;
   }
 
   .accessibility-toolbar {
-    top: 212px;
+    top: 244px;
     right: 10px;
     width: calc(100vw - 20px);
   }
 
   .top-bar-actions {
-    flex-wrap: wrap;
-    justify-content: stretch;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    gap: 8px;
+    justify-content: flex-start;
+    order: 2;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-bar-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-bar-left {
+    order: 3;
+  }
+
+  .top-bar-right {
+    order: 1;
+    display: flex;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-bar-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-bar-actions .back-home-button,
+  .top-bar-right .back-home-button,
+  .share-site-button {
+    width: auto;
+    min-width: max-content;
+    min-height: 42px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+
+  .share-site-button {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
   }
 
   .privacy-header {
