@@ -2085,6 +2085,7 @@ async function handleResetPassword(event) {
   const url = new URL(window.location.href);
   url.searchParams.delete('resetToken');
   window.history.replaceState({ mode: 'member' }, '', `${url.pathname}${url.search}#member`);
+  applyRoute('member', true);
 }
 
 function validateAccountDetails(payload) {
