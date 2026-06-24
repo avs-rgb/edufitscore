@@ -2184,6 +2184,58 @@ tbody tr:nth-child(5n + 1) {
     gap: 12px;
   }
 
+  .teacher-entry-panel,
+  .teacher-results-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .teacher-entry-panel .teacher-panel-header {
+    display: contents;
+  }
+
+  .teacher-entry-panel h2 {
+    order: 1;
+    margin-bottom: 12px;
+    text-align: right;
+  }
+
+  .teacher-entry-panel .teacher-panel-header .teacher-entry-actions {
+    order: 4;
+    margin-top: 12px;
+  }
+
+  .teacher-entry-panel #teacher-entry-message {
+    order: 2;
+  }
+
+  .teacher-entry-panel #teacher-entry-table {
+    order: 3;
+  }
+
+  .teacher-results-panel .teacher-panel-header {
+    display: contents;
+  }
+
+  .teacher-results-panel h2 {
+    order: 1;
+    margin-bottom: 12px;
+    text-align: right;
+  }
+
+  .teacher-results-panel #teacher-results-summary {
+    order: 2;
+  }
+
+  .teacher-results-panel #teacher-results-table {
+    order: 3;
+  }
+
+  .teacher-results-panel .teacher-results-actions {
+    order: 4;
+    margin-top: 12px;
+  }
+
   .teacher-class-form {
     grid-template-columns: 1fr;
   }
