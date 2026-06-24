@@ -210,6 +210,57 @@ let visibleHistoryGraphStudents = new Set();
 let historyGraphSelectionTouched = false;
 let adminAuditEntries = [];
 
+const uiPreferenceKeys = {
+  activeView: 'edufitscore.activeView',
+  teacherGender: 'edufitscore.teacherGender',
+  classListView: 'edufitscore.classListView',
+  classSortField: 'edufitscore.classSortField',
+  classSortDirection: 'edufitscore.classSortDirection',
+};
+
+function readUiPreference(key) {
+  try {
+    return window.localStorage.getItem(key) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function writeUiPreference(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (error) {
+    // Ignore storage failures; preferences are optional.
+  }
+}
+
+function applyStoredUiPreferences() {
+  const storedView = readUiPreference(uiPreferenceKeys.activeView);
+  if (['student_male', 'student_female', 'teacher'].includes(storedView)) {
+    activeView = storedView;
+  }
+
+  const storedTeacherGender = readUiPreference(uiPreferenceKeys.teacherGender);
+  if (['male', 'female'].includes(storedTeacherGender)) {
+    activeTeacherGenderValue = storedTeacherGender;
+  }
+
+  const storedClassListView = readUiPreference(uiPreferenceKeys.classListView);
+  if (['cards', 'list'].includes(storedClassListView)) {
+    teacherClassListView = storedClassListView;
+  }
+
+  const storedSortField = readUiPreference(uiPreferenceKeys.classSortField);
+  if (storedSortField && teacherClassSortField.querySelector(`option[value="${storedSortField}"]`)) {
+    teacherClassSortField.value = storedSortField;
+  }
+
+  const storedSortDirection = readUiPreference(uiPreferenceKeys.classSortDirection);
+  if (['asc', 'desc'].includes(storedSortDirection)) {
+    teacherClassSortDirection.value = storedSortDirection;
+  }
+}
+
 const staticViews = {
   privacy: privacyView,
   terms: termsView,
@@ -2971,6 +3022,7 @@ function handleTeacherClassDrop(event) {
   const orderedClasses = orderedIds.map((id) => teacherClasses.find((item) => item.id === id)).filter(Boolean);
   teacherClasses = orderedClasses.length === teacherClasses.length ? orderedClasses : teacherClasses;
   teacherClassSortField.value = 'manual';
+  writeUiPreference(uiPreferenceKeys.classSortField, teacherClassSortField.value);
   isSavingClassOrder = true;
   dragClassSourceId = null;
   fetch('/api/teacher/classes/reorder', {
@@ -3164,6 +3216,7 @@ function handleTeacherDragEnd() {
 
 function setActiveView(viewName) {
   activeView = viewName;
+  writeUiPreference(uiPreferenceKeys.activeView, viewName);
   const isStudentView = viewName.startsWith('student');
   const isTeacherMemberMode = currentEntryMode === 'member' || currentEntryMode.startsWith('member-');
 
@@ -3291,12 +3344,13 @@ async function init() {
   createStudentOptions();
   teacherClassStudentCountSelect.innerHTML = studentCountSelect.innerHTML;
   createTeacherNameInputs();
+  applyStoredUiPreferences();
   await refreshAuthUser();
   if (authUser) {
     await refreshTeacherClasses();
   }
   renderCurrentView();
-  setActiveView('student_male');
+  setActiveView(activeView);
   applyRoute(parseRouteHash(), true);
   syncTeacherGenderTabs();
 
@@ -3370,11 +3424,22 @@ async function init() {
   if (teacherClassViewToggleButton) {
     teacherClassViewToggleButton.addEventListener('click', () => {
       teacherClassListView = teacherClassListView === 'cards' ? 'list' : 'cards';
+      writeUiPreference(uiPreferenceKeys.classListView, teacherClassListView);
       renderTeacherClassList();
     });
   }
-  if (teacherClassSortField) { teacherClassSortField.addEventListener('change', renderTeacherClassList); }
-  if (teacherClassSortDirection) { teacherClassSortDirection.addEventListener('change', renderTeacherClassList); }
+  if (teacherClassSortField) {
+    teacherClassSortField.addEventListener('change', () => {
+      writeUiPreference(uiPreferenceKeys.classSortField, teacherClassSortField.value);
+      renderTeacherClassList();
+    });
+  }
+  if (teacherClassSortDirection) {
+    teacherClassSortDirection.addEventListener('change', () => {
+      writeUiPreference(uiPreferenceKeys.classSortDirection, teacherClassSortDirection.value);
+      renderTeacherClassList();
+    });
+  }
   if (teacherNewClassButton) {
     teacherNewClassButton.addEventListener('click', () => {
       teacherClassForm.reset();
@@ -3566,11 +3631,13 @@ async function init() {
   });
   teacherMaleTabButton.addEventListener('click', () => {
     activeTeacherGenderValue = 'male';
+    writeUiPreference(uiPreferenceKeys.teacherGender, activeTeacherGenderValue);
     syncTeacherGenderTabs();
     renderTeacherView();
   });
   teacherFemaleTabButton.addEventListener('click', () => {
     activeTeacherGenderValue = 'female';
+    writeUiPreference(uiPreferenceKeys.teacherGender, activeTeacherGenderValue);
     syncTeacherGenderTabs();
     renderTeacherView();
   });
