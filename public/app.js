@@ -722,8 +722,8 @@ function renderHistoryGraphMarkup(graphData, readOnly) {
   }).join('');
   const studentList = graphData.series.map((student, index) => `
     <label class="history-graph-student" style="--student-color: ${colors[index % colors.length]}">
-      <input type="checkbox" data-history-graph-student="${student.name}" ${visibleHistoryGraphStudents.has(student.name) ? 'checked' : ''} ${readOnly ? 'disabled' : ''} />
       <span>${student.name}</span>
+      <input type="checkbox" data-history-graph-student="${student.name}" ${visibleHistoryGraphStudents.has(student.name) ? 'checked' : ''} ${readOnly ? 'disabled' : ''} />
     </label>
   `).join('');
   const subjectControl = readOnly

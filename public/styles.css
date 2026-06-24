@@ -885,7 +885,7 @@ p {
 
 .history-graph-student {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   font-weight: 800;
@@ -896,7 +896,7 @@ p {
 .history-graph-student input {
   width: auto;
   min-width: 18px;
-  justify-self: start;
+  justify-self: end;
 }
 
 .history-graph-student span {
