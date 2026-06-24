@@ -290,7 +290,13 @@ function parseRouteHash() {
 
 function updateRoute(mode, replace = false) {
   const targetHash = mode === 'home' ? '' : `#${mode}`;
-  const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
+  const url = new URL(window.location.href);
+
+  if (mode !== 'resetPassword') {
+    url.searchParams.delete('resetToken');
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${targetHash}`;
 
   if (replace) {
     window.history.replaceState({ mode }, '', nextUrl);
@@ -2032,6 +2038,11 @@ async function handleForgotPassword(event) {
 }
 
 function currentResetPasswordToken() {
+  const tokenFromQuery = new URLSearchParams(window.location.search).get('resetToken');
+  if (tokenFromQuery) {
+    return tokenFromQuery;
+  }
+
   const hash = window.location.hash || '';
   const queryIndex = hash.indexOf('?');
 
@@ -2071,7 +2082,9 @@ async function handleResetPassword(event) {
 
   resetPasswordForm.reset();
   resetPasswordMessage.textContent = 'הסיסמה נשמרה. אפשר להתחבר עם הסיסמה החדשה.';
-  window.history.replaceState({ mode: 'member' }, '', `${window.location.pathname}${window.location.search}#member`);
+  const url = new URL(window.location.href);
+  url.searchParams.delete('resetToken');
+  window.history.replaceState({ mode: 'member' }, '', `${url.pathname}${url.search}#member`);
 }
 
 function validateAccountDetails(payload) {

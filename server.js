@@ -220,7 +220,7 @@ app.post('/api/auth/forgot-password', async (request, response) => {
     const reset = await createPasswordResetToken(email);
 
     if (reset) {
-      const resetUrl = `${publicBaseUrl}/#reset-password?token=${encodeURIComponent(reset.token)}`;
+      const resetUrl = `${publicBaseUrl}/?resetToken=${encodeURIComponent(reset.token)}#reset-password`;
       await sendMail({
         to: reset.user.email,
         subject: 'איפוס סיסמה ל-EduFitScore',
