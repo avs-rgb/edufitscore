@@ -200,6 +200,7 @@ let teacherHistoryEntries = [];
 let selectedTeacherHistoryIndex = 0;
 let isSavingClassOrder = false;
 let teacherHistoryMode = 'entry';
+let teacherHistoryEditMode = false;
 let pendingInvalidScoreWarnings = [];
 let pendingAdminStatusChange = null;
 let pendingAdminPasswordReset = null;
@@ -468,7 +469,8 @@ function renderTeacherHistoryEntry() {
   const entry = teacherHistoryEntries[selectedTeacherHistoryIndex];
   teacherHistorySelectedDate.innerHTML = `
     <span>רשומה נבחרת: ${formatHistoryDateTime(entry.createdAt)}</span>
-    <button type="button" class="danger-button teacher-history-delete-button" data-delete-history-id="${entry.id}">מחיקת רשומה</button>
+    <button type="button" class="back-home-button ${teacherHistoryEditMode ? 'is-editing-button' : ''}" data-edit-history-entry>${teacherHistoryEditMode ? 'סיום עריכה' : 'עריכה'}</button>
+    ${teacherHistoryEditMode ? `<button type="button" class="danger-button teacher-history-delete-button" data-delete-history-id="${entry.id}">מחיקת רשומה</button>` : ''}
   `;
 
   const students = Array.isArray(entry.payload?.students) ? entry.payload.students : [];
@@ -517,6 +519,7 @@ function renderTeacherHistoryEntry() {
 
 function renderTeacherHistoryRecords() {
   teacherHistoryMode = 'records';
+  teacherHistoryEditMode = false;
   teacherHistoryRecordsButton?.classList.add('is-editing-button');
   teacherHistoryRecordsWhatsappButton?.classList.remove('is-hidden');
   teacherHistoryRecordsCsvButton?.classList.remove('is-hidden');
@@ -790,6 +793,7 @@ async function deleteSelectedTeacherHistoryEntry(historyId) {
 
   teacherHistoryEntries = teacherHistoryEntries.filter((entry) => entry.id !== historyId);
   selectedTeacherHistoryIndex = Math.min(selectedTeacherHistoryIndex, Math.max(teacherHistoryEntries.length - 1, 0));
+  teacherHistoryEditMode = false;
   closeHistoryDeleteModal();
   renderTeacherHistoryEntry();
 }
@@ -1273,6 +1277,7 @@ function loadTeacherClassIntoWorkspace(teacherClass) {
   activeHistoryGraphSubject = '';
   visibleHistoryGraphStudents = new Set();
   historyGraphSelectionTouched = false;
+  teacherHistoryEditMode = false;
   syncTeacherGenderTabs();
   setTeacherSubview('detail');
   teacherClassDetailTitle.textContent = teacherClass.name;
@@ -3373,6 +3378,7 @@ async function init() {
   if (teacherHistoryRange) {
     teacherHistoryRange.addEventListener('input', () => {
       selectedTeacherHistoryIndex = Number(teacherHistoryRange.value);
+      teacherHistoryEditMode = false;
       renderTeacherHistoryEntry();
     });
   }
@@ -3459,9 +3465,16 @@ async function init() {
   }
   if (teacherHistorySelectedDate) {
     teacherHistorySelectedDate.addEventListener('click', (event) => {
+      const editButton = event.target.closest('[data-edit-history-entry]');
       const deleteButton = event.target.closest('[data-delete-history-id]');
       const recordsWhatsappButton = event.target.closest('[data-history-records-whatsapp]');
       const recordsCsvButton = event.target.closest('[data-history-records-csv]');
+
+      if (editButton) {
+        teacherHistoryEditMode = !teacherHistoryEditMode;
+        renderTeacherHistoryEntry();
+        return;
+      }
 
       if (recordsWhatsappButton) {
         shareHistoryRecordsWhatsapp();
@@ -3474,6 +3487,10 @@ async function init() {
       }
 
       if (deleteButton) {
+        if (!teacherHistoryEditMode) {
+          return;
+        }
+
         openHistoryDeleteModal(Number(deleteButton.dataset.deleteHistoryId));
       }
     });
