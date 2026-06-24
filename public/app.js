@@ -1204,7 +1204,7 @@ function renderTeacherClassList() {
   teacherClassSortField.disabled = teacherClassesEditMode;
   teacherClassSortDirection.disabled = teacherClassesEditMode;
   const useManualOrder = teacherClassesEditMode || teacherClassSortField.value === 'manual';
-  teacherClassViewToggleButton.textContent = teacherClassListView === 'cards' ? 'תצוגת רשימה' : 'תצוגת כרטיסים';
+  teacherClassViewToggleButton.textContent = 'תצוגה';
   const sortedClasses = useManualOrder ? [...teacherClasses] : [...teacherClasses].sort((left, right) => {
     const filledLeft = Object.values(left.values || {}).reduce((count, studentValues) => count + Object.values(studentValues || {}).filter(Boolean).length, 0);
     const filledRight = Object.values(right.values || {}).reduce((count, studentValues) => count + Object.values(studentValues || {}).filter(Boolean).length, 0);
