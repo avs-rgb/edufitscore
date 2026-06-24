@@ -2247,6 +2247,45 @@ tbody tr:nth-child(5n + 1) {
     padding-left: 6px;
   }
 
+  #teacher-home-view .teacher-panel-header .teacher-entry-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  #teacher-home-view .teacher-panel-header .teacher-entry-actions > * {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  #teacher-class-view-toggle {
+    order: 1;
+  }
+
+  #teacher-new-class-button {
+    order: 2;
+  }
+
+  #teacher-refresh-classes {
+    order: 3;
+  }
+
+  #teacher-class-sort-field {
+    order: 4;
+  }
+
+  #teacher-class-sort-direction {
+    order: 5;
+  }
+
+  #teacher-edit-classes-button {
+    order: 6;
+  }
+
   .teacher-results-actions {
     flex-direction: column;
     align-items: stretch;
