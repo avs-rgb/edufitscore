@@ -1996,7 +1996,7 @@ tbody tr:nth-child(5n + 1) {
 
 @media (max-width: 800px) {
   .page {
-    padding: 16px;
+    padding: 10px 10px 28px;
   }
 
   .layout {
@@ -2043,14 +2043,14 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .accessibility-fab {
-    top: 188px;
+    top: 162px;
     right: 10px;
     min-height: 48px;
     padding: 10px 16px;
   }
 
   .accessibility-toolbar {
-    top: 244px;
+    top: 218px;
     right: 10px;
     width: calc(100vw - 20px);
   }
@@ -2117,11 +2117,42 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .hero {
-    padding: 20px 18px 16px;
+    margin-bottom: 14px;
+    padding: 14px 16px 12px;
+    border-radius: 22px;
+  }
+
+  .hero-home-button {
+    margin-bottom: 8px;
+    font-size: clamp(2.05rem, 11vw, 3.1rem);
+    line-height: 1.08;
   }
 
   .hero h1 {
     font-size: 2.125rem;
+  }
+
+  .subtitle {
+    font-size: 0.8125rem;
+    line-height: 1.7;
+  }
+
+  .home-view,
+  .privacy-view {
+    margin: 6px 0 16px;
+  }
+
+  .home-card,
+  .panel {
+    width: 100%;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .top-controls,
+  .tabs-panel {
+    gap: 8px;
+    padding: 8px;
   }
 
   .teacher-top-controls {
@@ -2150,6 +2181,7 @@ tbody tr:nth-child(5n + 1) {
 
   .teacher-layout {
     flex-direction: column;
+    gap: 12px;
   }
 
   .teacher-class-form {
