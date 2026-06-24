@@ -897,14 +897,21 @@ p {
 .history-graph-student input {
   grid-column: 1;
   width: auto;
+  height: auto;
   min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
   justify-self: start;
+  align-self: center;
 }
 
 .history-graph-student span {
   grid-column: 2;
   justify-self: start;
+  align-self: center;
   min-width: 0;
+  line-height: 1.2;
   text-align: right;
 }
 
