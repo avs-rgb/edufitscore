@@ -174,6 +174,8 @@ body.accessibility-underline-links button {
 }
 
 .page {
+  position: relative;
+  z-index: 1;
   max-width: 1500px;
   margin: 0 auto;
   padding: 28px 28px 40px;
@@ -195,6 +197,7 @@ textarea {
   content: "";
   position: fixed;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
   background:
     radial-gradient(circle at top right, rgba(214, 156, 115, 0.12), transparent 30%),
