@@ -2671,7 +2671,6 @@ function renderYearlyHistorySummary() {
   teacherHistoryRange?.classList.add('is-hidden');
   teacherHistoryGraph.innerHTML = '';
   teacherHistorySelectedDate.innerHTML = `
-    <span class="history-selected-label">שנתי: יחס מחצית א׳ ${teacherYearlySemesterARatio}% / מחצית ב׳ ${100 - teacherYearlySemesterARatio}%</span>
     <button type="button" class="back-home-button ${teacherHistoryEditMode ? 'is-editing-button' : ''}" data-edit-history-entry>${teacherHistoryEditMode ? 'שמירת יחס' : 'עריכה'}</button>
   `;
   teacherClassHistory.innerHTML = `
