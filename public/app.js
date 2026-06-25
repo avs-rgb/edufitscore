@@ -219,6 +219,18 @@ let visibleHistoryGraphStudents = new Set();
 let historyGraphSelectionTouched = false;
 let adminAuditEntries = [];
 
+function addTapFallback(element, handler) {
+  if (!element) {
+    return;
+  }
+
+  element.addEventListener('click', handler);
+  element.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    handler(event);
+  }, { passive: false });
+}
+
 const uiPreferenceKeys = {
   activeView: 'edufitscore.activeView',
   teacherGender: 'edufitscore.teacherGender',
@@ -3996,10 +4008,10 @@ async function init() {
     syncTeacherGenderTabs();
     renderTeacherView();
   });
-  guestEntryButton.addEventListener('click', () => {
+  addTapFallback(guestEntryButton, () => {
     applyRoute('guest');
   });
-  memberEntryButton.addEventListener('click', () => {
+  addTapFallback(memberEntryButton, () => {
     applyRoute('member');
   });
   memberLoginForm.addEventListener('submit', handleMemberLogin);
@@ -4113,16 +4125,16 @@ async function init() {
   if (adminPasswordCloseButton) { adminPasswordCloseButton.addEventListener('click', closeAdminPasswordModal); }
   if (adminBackupResultOkButton) { adminBackupResultOkButton.addEventListener('click', closeAdminBackupResultModal); }
   if (adminBackupResultCloseButton) { adminBackupResultCloseButton.addEventListener('click', closeAdminBackupResultModal); }
-  topHomeButton.addEventListener('click', () => {
+  addTapFallback(topHomeButton, () => {
     applyRoute('home');
   });
-  adminNavButton.addEventListener('click', () => {
+  addTapFallback(adminNavButton, () => {
     applyRoute('admin');
   });
-  heroHomeButton.addEventListener('click', () => {
+  addTapFallback(heroHomeButton, () => {
     applyRoute('home');
   });
-  privacyButton.addEventListener('click', () => {
+  addTapFallback(privacyButton, () => {
     updateRoute('privacy');
     setEntryMode('privacy');
   });
@@ -4143,7 +4155,7 @@ async function init() {
   accessibilityCloseButton.addEventListener('click', () => {
     applyRoute(previousEntryMode || 'home');
   });
-  contactButton.addEventListener('click', () => {
+  addTapFallback(contactButton, () => {
     updateRoute('contact');
     setEntryMode('contact');
   });

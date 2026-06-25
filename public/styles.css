@@ -2458,3 +2458,9 @@ tbody tr:nth-child(5n + 1) {
     position: static;
   }
 }
+
+@media (pointer: coarse) {
+  .page::before {
+    display: none;
+  }
+}
