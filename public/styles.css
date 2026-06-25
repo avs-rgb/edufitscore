@@ -1660,6 +1660,7 @@ p {
 .yearly-history-table-block {
   display: grid;
   gap: 8px;
+  min-width: max-content;
 }
 
 .yearly-history-table-block h3 {

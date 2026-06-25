@@ -2674,18 +2674,18 @@ function renderYearlyHistorySummary() {
     <button type="button" class="back-home-button ${teacherHistoryEditMode ? 'is-editing-button' : ''}" data-edit-history-entry>${teacherHistoryEditMode ? 'שמירת יחס' : 'עריכה'}</button>
   `;
   teacherClassHistory.innerHTML = `
-    <section class="yearly-history-tables">
+    <section class="yearly-history-tables table-container">
       <div class="yearly-history-table-block">
         <h3>מחצית א׳ - שיאים</h3>
-        <div class="table-container">${renderTeacherResultsTableMarkup(semesterAResults)}</div>
+        ${renderTeacherResultsTableMarkup(semesterAResults)}
       </div>
       <div class="yearly-history-table-block">
         <h3>מחצית ב׳ - שיאים</h3>
-        <div class="table-container">${renderTeacherResultsTableMarkup(semesterBResults)}</div>
+        ${renderTeacherResultsTableMarkup(semesterBResults)}
       </div>
       <div class="yearly-history-table-block">
         <h3>שנתי - יחס ${teacherYearlySemesterARatio}% / ${100 - teacherYearlySemesterARatio}%</h3>
-        <div class="table-container">${renderTeacherResultsTableMarkup(yearlyResults)}</div>
+        ${renderTeacherResultsTableMarkup(yearlyResults)}
       </div>
     </section>
   `;
