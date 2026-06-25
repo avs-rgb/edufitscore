@@ -536,6 +536,10 @@
                 <button id="teacher-calculate" type="button" class="teacher-panel-button">המרת ציונים לכל הכיתה</button>
               </div>
             </div>
+              <div class="teacher-semester-controls teacher-entry-semester-controls" aria-label="בחירת מחצית להזנת תוצאות">
+                <button id="teacher-entry-semester-a" type="button" class="back-home-button is-editing-button" data-entry-semester="a">מחצית א׳</button>
+                <button id="teacher-entry-semester-b" type="button" class="back-home-button" data-entry-semester="b">מחצית ב׳</button>
+              </div>
               <div class="teacher-tools-actions teacher-inline-tools">
                 <button id="teacher-edit-students" type="button" class="back-home-button">עריכת תלמידים</button>
                 <button id="teacher-clear-values" type="button" class="back-home-button">נקה ציונים</button>
@@ -571,6 +575,13 @@
               </div>
             </div>
             <div id="teacher-history-summary" class="teacher-class-summary"></div>
+            <div class="teacher-semester-controls teacher-history-semester-controls" aria-label="בחירת מחצית בהיסטוריה">
+              <button id="teacher-history-semester-a" type="button" class="back-home-button is-editing-button" data-history-semester="a">מחצית א׳</button>
+              <button id="teacher-history-semester-b" type="button" class="back-home-button" data-history-semester="b">מחצית ב׳</button>
+              <button id="teacher-history-semester-yearly" type="button" class="back-home-button" data-history-semester="yearly">שנתי</button>
+              <label id="teacher-yearly-ratio-label" class="teacher-yearly-ratio is-hidden" for="teacher-yearly-ratio">יחס מחצית א׳: <span id="teacher-yearly-ratio-value">50%</span> / מחצית ב׳: <span id="teacher-yearly-ratio-b-value">50%</span></label>
+              <input id="teacher-yearly-ratio" class="teacher-yearly-ratio is-hidden" type="range" min="0" max="100" step="1" value="50" />
+            </div>
             <div class="teacher-history-timeline">
               <div id="teacher-history-date-range" class="teacher-history-date-range"></div>
               <input id="teacher-history-range" type="range" min="0" max="0" step="1" value="0" />

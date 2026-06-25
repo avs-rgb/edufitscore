@@ -120,6 +120,12 @@ const teacherBackToClassesButton = document.querySelector('#teacher-back-to-clas
 const teacherOpenHistoryViewButton = document.querySelector('#teacher-open-history-view');
 const teacherBackToClassDetailButton = document.querySelector('#teacher-back-to-class-detail');
 const teacherHistoryBackToClassesButton = document.querySelector('#teacher-history-back-to-classes');
+const teacherEntrySemesterButtons = Array.from(document.querySelectorAll('[data-entry-semester]'));
+const teacherHistorySemesterButtons = Array.from(document.querySelectorAll('[data-history-semester]'));
+const teacherYearlyRatioInput = document.querySelector('#teacher-yearly-ratio');
+const teacherYearlyRatioLabel = document.querySelector('#teacher-yearly-ratio-label');
+const teacherYearlyRatioValue = document.querySelector('#teacher-yearly-ratio-value');
+const teacherYearlyRatioBValue = document.querySelector('#teacher-yearly-ratio-b-value');
 const teacherClassForm = document.querySelector('#teacher-class-form');
 const teacherClassNameInput = document.querySelector('#teacher-class-name');
 const teacherClassGradeSelect = document.querySelector('#teacher-class-grade');
@@ -139,6 +145,7 @@ const teacherClassSummary = document.querySelector('#teacher-class-summary');
 const teacherHistorySummary = document.querySelector('#teacher-history-summary');
 const teacherClassHistory = document.querySelector('#teacher-class-history');
 const teacherHistoryRange = document.querySelector('#teacher-history-range');
+const teacherHistoryTimeline = document.querySelector('.teacher-history-timeline');
 const teacherHistoryDateRange = document.querySelector('#teacher-history-date-range');
 const teacherHistorySelectedDate = document.querySelector('#teacher-history-selected-date');
 const teacherHistoryGraph = document.querySelector('#teacher-history-graph');
@@ -189,6 +196,8 @@ let teacherClasses = [];
 let teacherRoster = [];
 let teacherClassValues = {};
 let activeTeacherClassId = null;
+let activeTeacherSemester = 'a';
+let teacherYearlySemesterARatio = 50;
 let teacherEditMode = false;
 let dragSourceIndex = null;
 let teacherClassesEditMode = false;
@@ -384,6 +393,10 @@ function activeTeacherStudentLabel() {
   return activeTeacherGenderValue === 'female' ? 'תלמידה' : 'תלמיד';
 }
 
+function integerOnlyValue(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
 function activeTeacherGender() {
   return activeTeacherGenderValue;
 }
@@ -395,6 +408,11 @@ function syncTeacherGenderTabs() {
 }
 
 function setTeacherSubview(viewName, updateHistory = true) {
+  if (viewName === 'detail' && activeTeacherSemester === 'yearly') {
+    activeTeacherSemester = 'a';
+    syncSemesterControls();
+  }
+
   teacherSubview = viewName;
   teacherHomeView.classList.toggle('is-hidden', viewName !== 'home');
   teacherNewClassView.classList.toggle('is-hidden', viewName !== 'new');
@@ -430,8 +448,85 @@ function createTeacherNameInputs() {
   `).join('');
 }
 
+function isSemesterValuesPayload(values) {
+  return values && typeof values === 'object' && values.semesters && typeof values.semesters === 'object';
+}
+
+function normalizeTeacherClassValues(values) {
+  if (isSemesterValuesPayload(values)) {
+    return {
+      semesters: {
+        a: values.semesters.a || {},
+        b: values.semesters.b || {},
+      },
+      yearlyRatioA: Number.isFinite(Number(values.yearlyRatioA)) ? Number(values.yearlyRatioA) : 50,
+    };
+  }
+
+  return {
+    semesters: {
+      a: values || {},
+      b: {},
+    },
+    yearlyRatioA: 50,
+  };
+}
+
+function currentSemesterValues() {
+  const normalized = normalizeTeacherClassValues(currentTeacherClass()?.values || teacherClassValues || {});
+  return activeTeacherSemester === 'b' ? normalized.semesters.b : normalized.semesters.a;
+}
+
+function setCurrentSemesterValues(values) {
+  if (activeTeacherSemester === 'yearly') {
+    return;
+  }
+
+  const teacherClass = currentTeacherClass();
+  const normalized = normalizeTeacherClassValues(teacherClass?.values || teacherClassValues || {});
+  normalized.semesters[activeTeacherSemester === 'b' ? 'b' : 'a'] = values || {};
+  normalized.yearlyRatioA = teacherYearlySemesterARatio;
+  teacherClassValues = normalized;
+
+  if (teacherClass) {
+    teacherClass.values = normalized;
+  }
+}
+
+function syncSemesterWorkspaceFromClass() {
+  const normalized = normalizeTeacherClassValues(currentTeacherClass()?.values || teacherClassValues || {});
+  teacherClassValues = normalized;
+  teacherYearlySemesterARatio = Number.isFinite(Number(normalized.yearlyRatioA)) ? Number(normalized.yearlyRatioA) : 50;
+}
+
+function syncSemesterControls() {
+  teacherEntrySemesterButtons.forEach((button) => {
+    button.classList.toggle('is-editing-button', button.dataset.entrySemester === activeTeacherSemester);
+  });
+
+  teacherHistorySemesterButtons.forEach((button) => {
+    button.classList.toggle('is-editing-button', button.dataset.historySemester === activeTeacherSemester);
+  });
+
+  const showYearlyRatioEditor = activeTeacherSemester === 'yearly' && teacherHistoryEditMode;
+  teacherYearlyRatioInput?.classList.toggle('is-hidden', !showYearlyRatioEditor);
+  teacherYearlyRatioLabel?.classList.toggle('is-hidden', activeTeacherSemester !== 'yearly');
+
+  if (teacherYearlyRatioInput) {
+    teacherYearlyRatioInput.value = String(teacherYearlySemesterARatio);
+  }
+
+  if (teacherYearlyRatioValue) {
+    teacherYearlyRatioValue.textContent = `${teacherYearlySemesterARatio}%`;
+  }
+
+  if (teacherYearlyRatioBValue) {
+    teacherYearlyRatioBValue.textContent = `${100 - teacherYearlySemesterARatio}%`;
+  }
+}
+
 function computeTeacherClassSummary() {
-  const filledScores = Object.values(teacherClassValues).reduce((count, studentValues) => (
+  const filledScores = Object.values(currentSemesterValues()).reduce((count, studentValues) => (
     count + Object.values(studentValues || {}).filter(Boolean).length
   ), 0);
 
@@ -460,6 +555,7 @@ async function loadTeacherClassHistory(classId) {
   const data = await response.json();
   teacherHistoryEntries = [...data.history]
     .filter((entry) => entry.eventType === 'calculated' && historyEntryHasScores(entry))
+    .filter((entry) => activeTeacherSemester === 'yearly' || (entry.payload?.semester || 'a') === activeTeacherSemester)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   selectedTeacherHistoryIndex = Math.max(teacherHistoryEntries.length - 1, 0);
   updateTeacherClassSummaryCards();
@@ -513,6 +609,14 @@ function renderTeacherHistoryEntry() {
   teacherHistoryRecordsButton?.classList.remove('is-editing-button');
   teacherHistoryRecordsWhatsappButton?.classList.add('is-hidden');
   teacherHistoryRecordsCsvButton?.classList.add('is-hidden');
+
+  if (activeTeacherSemester === 'yearly') {
+    renderYearlyHistorySummary();
+    return;
+  }
+
+  teacherHistoryTimeline?.classList.remove('is-hidden');
+  teacherHistoryRange?.classList.remove('is-hidden');
 
   if (!teacherHistoryEntries.length) {
     teacherHistoryDateRange.textContent = '';
@@ -726,6 +830,11 @@ function getHistoryGraphData(subjectLabel = activeHistoryGraphSubject) {
 }
 
 function renderHistoryGraph() {
+  if (activeTeacherSemester === 'yearly') {
+    teacherHistoryGraph.innerHTML = '';
+    return;
+  }
+
   const graphData = getHistoryGraphData();
 
   if (!graphData.subjects.length || !graphData.entries.length) {
@@ -1115,36 +1224,6 @@ function selectedSheet() {
   return sheetSets[gender].find((sheet) => sheet.id === sheetSelect.value);
 }
 
-function createDefaultTeacherRoster(count) {
-  return Array.from({ length: count }, (_, index) => ({
-    id: `student-${index + 1}`,
-    name: `${activeTeacherStudentLabel()} ${index + 1}`,
-  }));
-}
-
-function syncTeacherRoster() {
-  const count = Number(studentCountSelect.value);
-
-  if (!teacherRoster.length) {
-    teacherRoster = createDefaultTeacherRoster(count);
-    return;
-  }
-
-  teacherRoster = teacherRoster.slice(0, count);
-
-  while (teacherRoster.length < count) {
-    const index = teacherRoster.length;
-    teacherRoster.push({
-      id: `student-${index + 1}`,
-      name: `${activeTeacherStudentLabel()} ${index + 1}`,
-    });
-  }
-}
-
-function resetTeacherRoster() {
-  teacherRoster = createDefaultTeacherRoster(Number(studentCountSelect.value));
-}
-
 function createStudentOptions() {
   studentCountSelect.innerHTML = Array.from({ length: 45 }, (_, index) => {
     const value = index + 1;
@@ -1181,7 +1260,7 @@ function syncTeacherRoster() {
 
 function resetTeacherRoster() {
   teacherRoster = createDefaultTeacherRoster(Number(studentCountSelect.value));
-  teacherClassValues = {};
+  teacherClassValues = normalizeTeacherClassValues({});
 }
 
 function createTeacherNameInputs() {
@@ -1342,13 +1421,15 @@ function loadTeacherClassIntoWorkspace(teacherClass) {
   teacherClassNameInput.value = teacherClass.name;
   sheetSelect.value = `sheet_${teacherClass.grade}`;
   teacherRoster = teacherClass.roster?.length ? teacherClass.roster : createDefaultTeacherRoster(teacherClass.studentCount);
-  teacherClassValues = teacherClass.values || {};
+  teacherClass.values = normalizeTeacherClassValues(teacherClass.values || {});
+  syncSemesterWorkspaceFromClass();
   teacherEditMode = false;
   activeHistoryGraphSubject = '';
   visibleHistoryGraphStudents = new Set();
   historyGraphSelectionTouched = false;
   teacherHistoryEditMode = false;
   syncTeacherGenderTabs();
+  syncSemesterControls();
   setTeacherSubview('detail');
   teacherClassDetailTitle.textContent = teacherClass.name;
   const summary = computeTeacherClassSummary();
@@ -1453,7 +1534,7 @@ async function saveCurrentTeacherClass() {
     gender: activeTeacherGenderValue,
     studentCount: Number(studentCountSelect.value),
     roster: teacherRoster,
-    values: teacherClassValues,
+    values: normalizeTeacherClassValues(teacherClassValues),
   };
 
   const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}`, {
@@ -1472,6 +1553,40 @@ async function saveCurrentTeacherClass() {
   teacherClassFormError.textContent = '';
   loadTeacherClassIntoWorkspace(data.teacherClass);
   renderTeacherClassList();
+}
+
+async function saveCurrentTeacherClassQuietly() {
+  if (!activeTeacherClassId) {
+    return;
+  }
+
+  const payload = {
+    name: teacherClassNameInput.value.trim() || currentTeacherClass()?.name || 'כיתה ללא שם',
+    grade: teacherClassGradeSelect.value,
+    gender: activeTeacherGenderValue,
+    studentCount: Number(studentCountSelect.value),
+    roster: teacherRoster,
+    values: normalizeTeacherClassValues(teacherClassValues),
+  };
+
+  const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    teacherClassFormError.textContent = 'לא ניתן לשמור את הכיתה כרגע.';
+    return;
+  }
+
+  const data = await response.json();
+  teacherClasses = teacherClasses.map((item) => (item.id === data.teacherClass.id ? data.teacherClass : item));
+  const activeClass = currentTeacherClass();
+  if (activeClass) {
+    activeClass.values = normalizeTeacherClassValues(data.teacherClass.values || {});
+  }
+  teacherClassFormError.textContent = '';
 }
 
 function renderClassTabs() {
@@ -2363,6 +2478,8 @@ async function logoutMember() {
 function renderTeacherEntryTable() {
   const sheet = selectedSheet();
   syncTeacherRoster();
+  const semesterValues = currentSemesterValues();
+  const isYearly = activeTeacherSemester === 'yearly';
 
   teacherEntryTable.innerHTML = `
     <table class="teacher-entry-table">
@@ -2395,7 +2512,10 @@ function renderTeacherEntryTable() {
                   data-student-index="${index}"
                   data-metric-key="${metric.key}"
                   aria-label="${student.name} ${metric.label}"
-                  value="${teacherClassValues[student.id]?.[metric.key] || ''}"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  value="${integerOnlyValue(semesterValues[student.id]?.[metric.key] || '')}"
+                  ${isYearly ? 'disabled' : ''}
                 />
               </td>
             `).join('')}
@@ -2407,10 +2527,113 @@ function renderTeacherEntryTable() {
 }
 
 function renderTeacherResultsTable(students = []) {
-  const sheet = selectedSheet();
   syncTeacherRoster();
 
-  teacherResultsTable.innerHTML = `
+  teacherResultsTable.innerHTML = renderTeacherResultsTableMarkup(students.length ? students : teacherRoster.map((student) => ({
+    studentName: student.name,
+    results: selectedSheet().metrics.map((metric) => ({ key: metric.key, result: null })),
+    averageScore: null,
+  })));
+}
+
+function bestSemesterScoresFromHistory(semester) {
+  const sheet = selectedSheet();
+  const bestByStudent = new Map();
+  teacherHistoryEntries
+    .filter((entry) => (entry.payload?.semester || 'a') === semester)
+    .forEach((entry) => {
+      (entry.payload?.students || []).forEach((student) => {
+        const name = currentStudentNameForHistory(student.studentName, teacherRoster.findIndex((item) => item.name === student.studentName)) || student.studentName;
+        if (!bestByStudent.has(name)) {
+          bestByStudent.set(name, {});
+        }
+
+        const scores = bestByStudent.get(name);
+        (student.results || []).forEach((item) => {
+          const score = Number(item?.result?.score);
+          if (!Number.isFinite(score)) {
+            return;
+          }
+
+          if (!Number.isFinite(scores[item.key]) || score > scores[item.key]) {
+            scores[item.key] = score;
+          }
+        });
+      });
+    });
+
+  return { sheet, bestByStudent };
+}
+
+function calculateYearlyTeacherResults() {
+  const ratioA = teacherYearlySemesterARatio / 100;
+  const ratioB = 1 - ratioA;
+  const semesterA = bestSemesterScoresFromHistory('a');
+  const semesterB = bestSemesterScoresFromHistory('b');
+  const sheet = semesterA.sheet;
+
+  return teacherRoster.map((student) => {
+    const scoresA = semesterA.bestByStudent.get(student.name) || {};
+    const scoresB = semesterB.bestByStudent.get(student.name) || {};
+    const results = sheet.metrics.map((metric) => {
+      const scoreA = Number(scoresA[metric.key]);
+      const scoreB = Number(scoresB[metric.key]);
+      const parts = [];
+
+      if (Number.isFinite(scoreA)) {
+        parts.push({ score: scoreA, ratio: ratioA });
+      }
+
+      if (Number.isFinite(scoreB)) {
+        parts.push({ score: scoreB, ratio: ratioB });
+      }
+
+      const totalRatio = parts.reduce((sum, item) => sum + item.ratio, 0);
+      const yearlyScore = totalRatio > 0
+        ? Math.round(parts.reduce((sum, item) => sum + (item.score * item.ratio), 0) / totalRatio)
+        : null;
+
+      return {
+        key: metric.key,
+        label: metric.label,
+        result: yearlyScore === null ? null : { score: yearlyScore },
+      };
+    });
+    const numericScores = results.map((item) => item.result?.score).filter((score) => Number.isFinite(score));
+
+    return {
+      studentName: student.name,
+      results,
+      averageScore: numericScores.length ? Math.floor(numericScores.reduce((sum, score) => sum + score, 0) / numericScores.length) : null,
+    };
+  });
+}
+
+function bestSemesterResultsForTable(semester) {
+  const { sheet, bestByStudent } = bestSemesterScoresFromHistory(semester);
+  return teacherRoster.map((student) => {
+    const scores = bestByStudent.get(student.name) || {};
+    const results = sheet.metrics.map((metric) => {
+      const score = Number(scores[metric.key]);
+      return {
+        key: metric.key,
+        label: metric.label,
+        result: Number.isFinite(score) ? { score } : null,
+      };
+    });
+    const numericScores = results.map((item) => item.result?.score).filter((score) => Number.isFinite(score));
+
+    return {
+      studentName: student.name,
+      results,
+      averageScore: numericScores.length ? Math.floor(numericScores.reduce((sum, score) => sum + score, 0) / numericScores.length) : null,
+    };
+  });
+}
+
+function renderTeacherResultsTableMarkup(students = []) {
+  const sheet = selectedSheet();
+  return `
     <table>
       <caption class="visually-hidden">טבלת תוצאות מומרות למורים</caption>
       <thead>
@@ -2430,17 +2653,42 @@ function renderTeacherResultsTable(students = []) {
             }).join('')}
             <td class="average-cell">${student.averageScore ?? ''}</td>
           </tr>
-        `).join('') : `
-          ${teacherRoster.map((student) => `
-            <tr>
-              <td class="student-name-cell">${student.name}</td>
-              ${sheet.metrics.map(() => '<td></td>').join('')}
-              <td class="average-cell"></td>
-            </tr>
-          `).join('')}
-        `}
+        `).join('') : ''}
       </tbody>
     </table>
+  `;
+}
+
+function renderYearlyHistorySummary() {
+  syncSemesterControls();
+  const semesterAResults = bestSemesterResultsForTable('a');
+  const semesterBResults = bestSemesterResultsForTable('b');
+  const yearlyResults = calculateYearlyTeacherResults();
+  latestTeacherResults = yearlyResults;
+
+  teacherHistoryDateRange.textContent = '';
+  teacherHistoryTimeline?.classList.add('is-hidden');
+  teacherHistoryRange?.classList.add('is-hidden');
+  teacherHistoryGraph.innerHTML = '';
+  teacherHistorySelectedDate.innerHTML = `
+    <span class="history-selected-label">שנתי: יחס מחצית א׳ ${teacherYearlySemesterARatio}% / מחצית ב׳ ${100 - teacherYearlySemesterARatio}%</span>
+    <button type="button" class="back-home-button ${teacherHistoryEditMode ? 'is-editing-button' : ''}" data-edit-history-entry>${teacherHistoryEditMode ? 'שמירת יחס' : 'עריכה'}</button>
+  `;
+  teacherClassHistory.innerHTML = `
+    <section class="yearly-history-tables">
+      <div class="yearly-history-table-block">
+        <h3>מחצית א׳ - שיאים</h3>
+        <div class="table-container">${renderTeacherResultsTableMarkup(semesterAResults)}</div>
+      </div>
+      <div class="yearly-history-table-block">
+        <h3>מחצית ב׳ - שיאים</h3>
+        <div class="table-container">${renderTeacherResultsTableMarkup(semesterBResults)}</div>
+      </div>
+      <div class="yearly-history-table-block">
+        <h3>שנתי - יחס ${teacherYearlySemesterARatio}% / ${100 - teacherYearlySemesterARatio}%</h3>
+        <div class="table-container">${renderTeacherResultsTableMarkup(yearlyResults)}</div>
+      </div>
+    </section>
   `;
 }
 
@@ -2453,11 +2701,15 @@ function collectTeacherStudents() {
   const sheet = selectedSheet();
   syncTeacherRoster();
 
+  if (activeTeacherSemester === 'yearly') {
+    return [];
+  }
+
   const rawStudents = teacherRoster.map((student, studentIndex) => ({
     studentName: student.name,
     values: Object.fromEntries(sheet.metrics.map((metric) => {
       const input = teacherEntryTable.querySelector(`[data-student-index="${studentIndex}"][data-metric-key="${metric.key}"]`);
-      return [metric.key, input?.value || ''];
+      return [metric.key, integerOnlyValue(input?.value || '')];
     })),
   }));
 
@@ -2465,14 +2717,20 @@ function collectTeacherStudents() {
 }
 
 function syncTeacherClassValuesFromInputs() {
+  if (activeTeacherSemester === 'yearly') {
+    return;
+  }
+
+  const nextValues = {};
   teacherRoster.forEach((student, studentIndex) => {
     const values = {};
     selectedSheet().metrics.forEach((metric) => {
       const input = teacherEntryTable.querySelector(`[data-student-index="${studentIndex}"][data-metric-key="${metric.key}"]`);
-      values[metric.key] = input?.value || '';
+      values[metric.key] = integerOnlyValue(input?.value || '');
     });
-    teacherClassValues[student.id] = values;
+    nextValues[student.id] = values;
   });
+  setCurrentSemesterValues(nextValues);
 }
 
 function moveTeacherFocus(currentInput) {
@@ -2844,6 +3102,11 @@ async function saveTeacherHistorySnapshot() {
     return;
   }
 
+  if (activeTeacherSemester === 'yearly') {
+    teacherClassFormError.textContent = 'מצב שנתי מחושב ממחציות א׳ וב׳ ולא נשמר כהיסטוריה נפרדת.';
+    return;
+  }
+
   syncTeacherClassValuesFromInputs();
   const rawStudents = collectTeacherStudents();
   const hasAnyValues = rawStudents.some((student) => Object.values(student.values || {}).some(Boolean));
@@ -2868,6 +3131,7 @@ async function saveTeacherHistorySnapshot() {
       sheetId: selectedSheet().id,
       gender: activeTeacherGender(),
       classId: activeTeacherClassId,
+      semester: activeTeacherSemester,
       students: rawStudents,
     }),
   });
@@ -2888,9 +3152,22 @@ async function saveTeacherHistorySnapshot() {
 
 function renderTeacherView() {
   syncTeacherRoster();
+  syncSemesterControls();
   renderTeacherEntryTable();
   resetTeacherResults();
   renderTeacherClassList();
+}
+
+async function setTeacherSemester(semester) {
+  if (!['a', 'b', 'yearly'].includes(semester)) {
+    return;
+  }
+
+  syncTeacherClassValuesFromInputs();
+  activeTeacherSemester = semester;
+  syncSemesterControls();
+  await loadTeacherClassHistory(activeTeacherClassId);
+  renderTeacherView();
 }
 
 function applyPastedTeacherData() {
@@ -2910,23 +3187,30 @@ function applyPastedTeacherData() {
       const input = teacherEntryTable.querySelector(`[data-student-index="${rowIndex}"][data-metric-key="${metric.key}"]`);
 
       if (input) {
-        const trimmedValue = value.trim();
+        const trimmedValue = integerOnlyValue(value);
         input.value = trimmedValue;
-        teacherClassValues[teacherRoster[rowIndex].id] = {
-          ...(teacherClassValues[teacherRoster[rowIndex].id] || {}),
+        const semesterValues = currentSemesterValues();
+        semesterValues[teacherRoster[rowIndex].id] = {
+          ...(semesterValues[teacherRoster[rowIndex].id] || {}),
           [metric.key]: trimmedValue,
         };
+        setCurrentSemesterValues(semesterValues);
       }
     });
   });
 }
 
 function clearTeacherValues() {
+  if (activeTeacherSemester === 'yearly') {
+    teacherClassFormError.textContent = 'מצב שנתי מחושב ממחציות א׳ וב׳ ולא ניתן לנקות בו ציונים.';
+    return;
+  }
+
   teacherEntryTable.querySelectorAll('input[data-student-index][data-metric-key]').forEach((input) => {
     input.value = '';
   });
   teacherPasteBox.value = '';
-  teacherClassValues = {};
+  setCurrentSemesterValues({});
   resetTeacherResults();
 }
 
@@ -3136,6 +3420,11 @@ function handleTeacherEntryInput(event) {
     return;
   }
 
+  const sanitizedValue = integerOnlyValue(input.value);
+  if (input.value !== sanitizedValue) {
+    input.value = sanitizedValue;
+  }
+
   const studentIndex = Number(input.dataset.studentIndex);
   const student = teacherRoster[studentIndex];
 
@@ -3143,10 +3432,39 @@ function handleTeacherEntryInput(event) {
     return;
   }
 
-  teacherClassValues[student.id] = {
-    ...(teacherClassValues[student.id] || {}),
-    [input.dataset.metricKey]: input.value,
+  const semesterValues = currentSemesterValues();
+  semesterValues[student.id] = {
+    ...(semesterValues[student.id] || {}),
+    [input.dataset.metricKey]: sanitizedValue,
   };
+  setCurrentSemesterValues(semesterValues);
+}
+
+function handleTeacherEntryPaste(event) {
+  const input = event.target.closest('input[data-student-index][data-metric-key]');
+
+  if (!input || activeTeacherSemester === 'yearly') {
+    return;
+  }
+
+  const pastedScores = (event.clipboardData?.getData('text') || '').match(/\d+/g) || [];
+
+  if (!pastedScores.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const startIndex = Number(input.dataset.studentIndex);
+  const metricKey = input.dataset.metricKey;
+  const targetInputs = Array.from(teacherEntryTable.querySelectorAll(`input[data-metric-key="${metricKey}"]`))
+    .filter((item) => Number(item.dataset.studentIndex) >= startIndex)
+    .sort((a, b) => Number(a.dataset.studentIndex) - Number(b.dataset.studentIndex));
+
+  targetInputs.slice(0, pastedScores.length).forEach((targetInput, index) => {
+    targetInput.value = integerOnlyValue(pastedScores[index]);
+    handleTeacherEntryInput({ target: targetInput });
+  });
 }
 
 function handleTeacherDragStart(event) {
@@ -3252,6 +3570,14 @@ async function calculateScore(event) {
 async function calculateTeacherScores() {
   if (!activeTeacherClassId) {
     teacherClassFormError.textContent = 'יש לבחור או ליצור כיתה לפני חישוב.';
+    return;
+  }
+
+  if (activeTeacherSemester === 'yearly') {
+    await loadTeacherClassHistory(activeTeacherClassId);
+    latestTeacherResults = calculateYearlyTeacherResults();
+    renderTeacherResultsTable(latestTeacherResults);
+    teacherClassFormError.textContent = '';
     return;
   }
 
@@ -3376,6 +3702,7 @@ async function init() {
     teacherEntryTable.addEventListener('keydown', handleTeacherEntryKeydown);
     teacherEntryTable.addEventListener('keydown', handleTeacherNameKeydown);
     teacherEntryTable.addEventListener('input', handleTeacherEntryInput);
+    teacherEntryTable.addEventListener('paste', handleTeacherEntryPaste);
     teacherEntryTable.addEventListener('click', handleTeacherEntryClick);
     teacherEntryTable.addEventListener('input', handleTeacherNameInput);
     teacherEntryTable.addEventListener('dragstart', handleTeacherDragStart);
@@ -3415,6 +3742,31 @@ async function init() {
   }
   if (teacherSaveClassButton) { teacherSaveClassButton.addEventListener('click', saveCurrentTeacherClass); }
   if (teacherSaveHistoryButton) { teacherSaveHistoryButton.addEventListener('click', saveTeacherHistorySnapshot); }
+  teacherEntrySemesterButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setTeacherSemester(button.dataset.entrySemester);
+    });
+  });
+  teacherHistorySemesterButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setTeacherSemester(button.dataset.historySemester);
+    });
+  });
+  if (teacherYearlyRatioInput) {
+    teacherYearlyRatioInput.addEventListener('input', () => {
+      teacherYearlySemesterARatio = Number(teacherYearlyRatioInput.value);
+      const normalized = normalizeTeacherClassValues(teacherClassValues);
+      normalized.yearlyRatioA = teacherYearlySemesterARatio;
+      teacherClassValues = normalized;
+      if (currentTeacherClass()) {
+        currentTeacherClass().values = normalized;
+      }
+      syncSemesterControls();
+      if (activeTeacherSemester === 'yearly') {
+        renderYearlyHistorySummary();
+      }
+    });
+  }
   if (teacherClassForm) {
     teacherClassForm.addEventListener('submit', createTeacherClassFromForm);
     teacherClassForm.addEventListener('keydown', handleTeacherNameKeydown);
@@ -3572,14 +3924,18 @@ async function init() {
     teacherHistoryGraph.addEventListener('mouseleave', hideHistoryGraphTooltip);
   }
   if (teacherHistorySelectedDate) {
-    teacherHistorySelectedDate.addEventListener('click', (event) => {
+    teacherHistorySelectedDate.addEventListener('click', async (event) => {
       const editButton = event.target.closest('[data-edit-history-entry]');
       const deleteButton = event.target.closest('[data-delete-history-id]');
       const recordsWhatsappButton = event.target.closest('[data-history-records-whatsapp]');
       const recordsCsvButton = event.target.closest('[data-history-records-csv]');
 
       if (editButton) {
+        const wasEditing = teacherHistoryEditMode;
         teacherHistoryEditMode = !teacherHistoryEditMode;
+        if (activeTeacherSemester === 'yearly' && wasEditing) {
+          await saveCurrentTeacherClassQuietly();
+        }
         renderTeacherHistoryEntry();
         return;
       }

@@ -572,7 +572,7 @@ app.post('/api/score', (request, response) => {
 });
 
 app.post('/api/bulk-score', requireAuth, async (request, response) => {
-  const { sheetId, students, gender, classId } = request.body || {};
+  const { sheetId, students, gender, classId, semester } = request.body || {};
   const sheets = resolveSheets(gender);
   const sheet = sheets.find((item) => item.id === sheetId);
 
@@ -605,6 +605,7 @@ app.post('/api/bulk-score', requireAuth, async (request, response) => {
 
   if (classId) {
     await appendClassHistory(Number(classId), 'calculated', {
+      semester: semester === 'b' ? 'b' : 'a',
       studentCount: normalizedStudents.length,
       rawStudents: normalizedStudents,
       students: responseBody.students.map((student) => ({

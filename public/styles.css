@@ -1217,7 +1217,7 @@ p {
 }
 
 .is-hidden {
-  display: none;
+  display: none !important;
 }
 
 .teacher-only-controls.is-hidden {
@@ -1531,6 +1531,40 @@ p {
   gap: 10px;
 }
 
+.teacher-semester-controls {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  align-items: center;
+}
+
+.teacher-entry-semester-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.teacher-history-semester-controls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.teacher-semester-controls button {
+  width: 100%;
+}
+
+.teacher-yearly-ratio {
+  grid-column: 1 / -1;
+}
+
+.teacher-yearly-ratio.is-hidden {
+  display: none;
+}
+
+.teacher-yearly-ratio:not(input) {
+  text-align: center;
+  font-weight: 800;
+  color: #6f5648;
+}
+
 .teacher-summary-card {
   padding: 12px 14px;
   border-radius: 16px;
@@ -1616,6 +1650,22 @@ p {
   border-radius: 14px;
   background: #fbf4ed;
   border: 1px solid #ead8ca;
+}
+
+.yearly-history-tables {
+  display: grid;
+  gap: 18px;
+}
+
+.yearly-history-table-block {
+  display: grid;
+  gap: 8px;
+}
+
+.yearly-history-table-block h3 {
+  margin: 0;
+  color: #5a372c;
+  text-align: right;
 }
 
 .teacher-history-results-table {
