@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EduFitScore</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260701-25" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">דלג לתוכן הראשי</a>
@@ -117,10 +117,28 @@
             <input id="signup-email" name="email" type="email" autocomplete="email" required />
             <label class="field-label" for="signup-phone">טלפון</label>
             <input id="signup-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" pattern="[0-9+*#]+" required />
-            <label class="field-label" for="signup-city">עיר</label>
-            <input id="signup-city" name="city" type="text" autocomplete="address-level2" required />
-            <label class="field-label" for="signup-school">שם בית הספר</label>
-            <input id="signup-school" name="schoolName" type="text" autocomplete="organization" required />
+            <label class="field-label" for="signup-account-type">סוג חשבון</label>
+            <select id="signup-account-type" name="accountType" class="teacher-sort-select">
+              <option value="teacher">מורה - בקשת שיוך לבית ספר קיים</option>
+              <option value="school_admin">אדמין בי"ס / רכז חינוך גופני</option>
+            </select>
+            <label class="field-label" for="signup-city">עיר / רשות</label>
+            <input id="signup-city" name="city" type="text" autocomplete="address-level2" list="signup-city-options" required />
+            <datalist id="signup-city-options"></datalist>
+            <input id="signup-invite-token" name="inviteToken" type="hidden" />
+            <div id="signup-teacher-school-fields">
+              <label class="field-label" for="signup-school-select">בית ספר</label>
+              <input id="signup-school-select" name="schoolLookup" type="text" list="signup-school-options" autocomplete="organization" />
+              <input id="signup-school-id" name="schoolId" type="hidden" />
+              <datalist id="signup-school-options"></datalist>
+            </div>
+            <div id="signup-admin-school-fields" class="is-hidden">
+              <label class="field-label" for="signup-school">שם בית הספר</label>
+              <input id="signup-school" name="schoolName" type="text" autocomplete="organization" list="signup-admin-school-options" />
+              <datalist id="signup-admin-school-options"></datalist>
+              <label class="field-label" for="signup-school-city">עיר / רשות בית הספר</label>
+              <input id="signup-school-city" name="schoolCity" type="text" autocomplete="address-level2" list="signup-city-options" />
+            </div>
             <label class="field-label" for="signup-password">סיסמה</label>
             <input id="signup-password" name="password" type="password" autocomplete="new-password" required />
             <label class="field-label" for="signup-password-repeat">אימות סיסמה</label>
@@ -283,6 +301,120 @@
           </div>
         </div>
       </section>
+      <section id="school-admin-view" class="privacy-view is-hidden">
+        <div class="privacy-card panel">
+          <div class="privacy-header">
+            <h2>ניהול חינוך גופני</h2>
+            <div class="teacher-entry-actions">
+              <button id="school-admin-score-tables" type="button" class="back-home-button">טבלאות ציונים</button>
+              <button id="school-admin-teacher-mode" type="button" class="back-home-button">מעבר למצב מורה</button>
+            </div>
+          </div>
+          <div class="privacy-content">
+            <div id="school-admin-summary" class="admin-summary-box"></div>
+            <section class="admin-users-panel">
+              <h3>הזמנת מורה לבית הספר</h3>
+              <form id="school-admin-invite-form" class="member-login-form admin-restore-compact-form">
+                <label class="field-label" for="school-admin-invite-name">שם המורה</label>
+                <input id="school-admin-invite-name" name="teacherName" type="text" required />
+                <label class="field-label" for="school-admin-invite-email">דוא"ל אישי להזמנה</label>
+                <input id="school-admin-invite-email" name="email" type="email" required />
+                <label class="field-label" for="school-admin-invite-phone">טלפון ל-WhatsApp</label>
+                <input id="school-admin-invite-phone" name="phone" type="tel" inputmode="tel" pattern="[0-9+*#]*" />
+                <button type="submit" class="teacher-panel-button">יצירת הזמנה אישית</button>
+              </form>
+              <div id="school-admin-invite-result" class="login-error" role="status" aria-live="polite"></div>
+            </section>
+            <section class="admin-users-panel">
+              <h3>מורים וכיתות בבית הספר</h3>
+              <p>מוצגות כיתות בלבד, ללא שמות תלמידים וללא ציונים.</p>
+              <div id="school-admin-teachers" class="admin-users-table-container"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="school-admin-score-tables-view" class="privacy-view is-hidden">
+        <div class="privacy-card panel">
+          <div class="privacy-header">
+            <h2>טבלאות ציונים בית ספריות</h2>
+            <button id="school-admin-score-tables-back" type="button" class="back-home-button">חזרה לניהול חינוך גופני</button>
+          </div>
+          <div class="privacy-content">
+            <div id="school-score-table-summary" class="admin-summary-box"></div>
+            <div class="score-table-toolbar">
+              <button id="school-score-table-view-toggle" type="button" class="back-home-button">תצוגה</button>
+              <select id="school-score-table-sort-field" class="teacher-sort-select">
+                <option value="manual">סדר ידני</option>
+                <option value="grade">שכבה</option>
+                <option value="genderGroup">קבוצה</option>
+                <option value="subjectCount">מספר מקצועות</option>
+              </select>
+              <select id="school-score-table-sort-direction" class="teacher-sort-select">
+                <option value="asc">עולה / א-ת</option>
+                <option value="desc">יורד / ת-א</option>
+              </select>
+              <button id="school-score-table-new" type="button" class="back-home-button">טבלה חדשה</button>
+              <button id="school-score-table-edit" type="button" class="back-home-button">עריכה</button>
+              <button id="school-score-table-refresh" type="button" class="back-home-button">רענון</button>
+            </div>
+            <form id="school-score-table-range-form" class="score-table-range-form is-hidden">
+              <label class="field-label" for="school-score-grade-start">משכבה</label>
+              <select id="school-score-grade-start" name="gradeStart"></select>
+              <label class="field-label" for="school-score-grade-end">עד שכבה</label>
+              <select id="school-score-grade-end" name="gradeEnd"></select>
+              <button type="submit" class="teacher-panel-button">שמירת טווח</button>
+              <button id="school-score-table-range-cancel" type="button" class="back-home-button">ביטול</button>
+            </form>
+            <div id="school-score-table-message" class="login-error" role="status" aria-live="polite"></div>
+            <section id="school-score-table-create-panel" class="score-table-create-panel is-hidden">
+              <h3>יצירת טבלה חדשה</h3>
+              <form id="school-score-table-create-form" class="score-table-create-form">
+                <div class="score-table-create-row">
+                  <a class="secondary-button teacher-panel-button score-table-template-download" href="school-score-table-template-all-grades.xlsx" download>הורדת תבנית Excel</a>
+                  <label class="field-label" for="school-score-table-grade">שכבה</label>
+                  <select id="school-score-table-grade" name="grade" required></select>
+                </div>
+                <div class="score-table-create-row">
+                  <label class="field-label" for="school-score-table-gender">קבוצה</label>
+                  <select id="school-score-table-gender" name="genderGroup" required>
+                    <option value="male">בנים</option>
+                    <option value="female">בנות</option>
+                    <option value="other">מעורב</option>
+                  </select>
+                </div>
+                <div class="score-table-create-row">
+                  <label class="field-label" for="school-score-table-starting-score">ציון התחלתי</label>
+                  <input id="school-score-table-starting-score" name="startingScore" type="number" min="0" max="100" step="1" value="55" required />
+                </div>
+                <div class="score-table-create-actions">
+                  <button type="submit" class="teacher-panel-button">יצירת טבלה</button>
+                  <button id="school-score-table-create-cancel" type="button" class="back-home-button">ביטול</button>
+                  <label class="secondary-button teacher-panel-button score-table-import-button" for="school-score-table-import">ייבוא מ-Excel</label>
+                  <input id="school-score-table-import" class="visually-hidden" type="file" accept=".xlsx,.xls,.csv" />
+                </div>
+              </form>
+            </section>
+            <section>
+              <h3>טבלאות קיימות</h3>
+              <div id="school-score-table-cards" class="teacher-class-list"></div>
+            </section>
+            <section id="school-score-table-builder" class="score-table-builder is-hidden">
+              <div class="teacher-panel-header">
+                <h3 id="school-score-table-builder-title">עריכת טבלה</h3>
+                <div class="teacher-entry-actions">
+                  <button id="school-score-table-save" type="button" class="teacher-panel-button">שמירה</button>
+                  <button id="school-score-table-close" type="button" class="back-home-button">סגירה</button>
+                  <button id="school-score-table-delete" type="button" class="danger-button">מחיקה</button>
+                </div>
+              </div>
+              <p class="home-subtitle">הוסיפו מקצוע עם כפתור +. Enter בתאים עובר לשדה שמתחת. ניתן להדביק טור או אזור מאקסל ולהשאיר תאים ריקים לפי הצורך. שורת 0 נשארת 0 בכל המקצועות.</p>
+              <div id="school-score-table-grid" class="score-table-grid table-container"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
       <section id="admin-status-modal" class="modal-overlay is-hidden" aria-hidden="true">
         <div class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="admin-status-title">
           <button id="admin-status-close" type="button" class="modal-close-button" aria-label="סגירה">X</button>
@@ -343,16 +475,24 @@
               <label class="field-label" for="profile-phone">טלפון</label>
               <input id="profile-phone" name="phone" type="tel" inputmode="tel" pattern="[0-9+*#]+" required />
               <div class="teacher-profile-only">
-                <label class="field-label" for="profile-city">עיר</label>
+                <label class="field-label" for="profile-city">עיר / רשות</label>
                 <input id="profile-city" name="city" type="text" required />
-              </div>
-              <div class="teacher-profile-only">
-                <label class="field-label" for="profile-school">שם בית הספר</label>
-                <input id="profile-school" name="schoolName" type="text" required />
               </div>
               <button type="submit" class="teacher-panel-button">שמירת פרטים</button>
               <div id="profile-details-message" class="login-error" role="alert" aria-live="polite"></div>
             </form>
+            <section id="profile-school-request-panel" class="profile-form admin-users-panel">
+              <h3>בתי הספר שלי</h3>
+              <div id="profile-school-memberships" class="school-admin-teacher-details"></div>
+              <div id="profile-school-request-controls">
+                <h3>בקשת חיבור לבית ספר נוסף</h3>
+                <p>ניתן להיות מחובר/ת עד 3 בתי ספר.</p>
+                <label class="field-label" for="profile-school-request-select">בית ספר</label>
+                <select id="profile-school-request-select" class="teacher-sort-select"></select>
+                <button id="profile-school-request-button" type="button" class="teacher-panel-button">שליחת בקשה</button>
+              </div>
+              <div id="profile-school-request-message" class="login-error" role="status" aria-live="polite"></div>
+            </section>
             <form id="profile-password-form" class="member-login-form profile-form">
               <h3>שינוי סיסמה</h3>
               <label class="field-label" for="profile-old-password">סיסמה נוכחית</label>
@@ -396,8 +536,6 @@
       <section class="top-controls">
         <section class="tabs-panel">
           <section class="tabs" aria-label="מצבי שימוש">
-            <button id="male-student-tab-button" class="tab-button is-active" type="button">בנים</button>
-            <button id="female-student-tab-button" class="tab-button" type="button">בנות</button>
             <button id="teacher-tab-button" class="tab-button" type="button">מורים</button>
           </section>
         </section>
@@ -417,10 +555,25 @@
           </section>
         </section>
 
-        <section class="panel class-selector-panel">
+        <section class="panel class-selector-panel student-source-panel">
+          <label class="field-label" for="student-school-score-source">בית-ספר</label>
+          <select id="student-school-score-source" class="class-select"></select>
+        </section>
+
+        <section id="student-default-class-card" class="panel class-selector-panel">
           <label class="field-label" for="sheet-select">בחירת כיתה</label>
           <div id="class-tabs" class="class-tabs" aria-label="בחירת כיתה"></div>
           <select id="sheet-select" class="class-select visually-hidden"></select>
+        </section>
+
+        <section id="student-school-grade-card" class="panel class-selector-panel student-school-score-card is-hidden">
+          <label class="field-label">שכבה</label>
+          <div id="student-school-grade-buttons" class="class-tabs"></div>
+        </section>
+
+        <section id="student-school-group-card" class="panel class-selector-panel student-school-score-card is-hidden">
+          <label class="field-label">קבוצה</label>
+          <div id="student-school-group-buttons" class="class-tabs"></div>
         </section>
       </section>
 
@@ -448,6 +601,7 @@
           <section class="panel teacher-class-management">
             <div class="teacher-panel-header">
               <h2>ניהול כיתות</h2>
+              <button id="teacher-school-admin-switch" type="button" class="back-home-button is-hidden">רכז/ת חנ"ג</button>
               <div class="teacher-entry-actions">
                 <button id="teacher-class-view-toggle" type="button" class="back-home-button">תצוגה</button>
                 <select id="teacher-class-sort-field" class="teacher-sort-select">
@@ -477,6 +631,10 @@
             </div>
             <form id="teacher-class-form" class="teacher-new-class-form">
               <div class="teacher-new-class-grid">
+                <div id="teacher-class-school-field" class="is-hidden">
+                  <label class="field-label" for="teacher-class-school">בית ספר</label>
+                  <select id="teacher-class-school" name="schoolId"></select>
+                </div>
                 <div>
                   <label class="field-label" for="teacher-class-name">שם כיתה</label>
                   <input id="teacher-class-name" name="name" type="text" required />
@@ -542,9 +700,12 @@
               </div>
               <div class="teacher-tools-actions teacher-inline-tools">
                 <button id="teacher-edit-students" type="button" class="back-home-button">עריכת תלמידים</button>
+                <button id="teacher-save-student-names" type="button" class="back-home-button is-hidden">שמירה</button>
+                <button id="teacher-cancel-student-names" type="button" class="back-home-button is-hidden">ביטול</button>
                 <button id="teacher-clear-values" type="button" class="back-home-button">נקה ציונים</button>
                 <span id="teacher-edit-save-message" class="teacher-save-status" role="status" aria-live="polite"></span>
               </div>
+              <p id="teacher-entry-message" class="teacher-save-status" role="status" aria-live="polite"></p>
               <div id="teacher-entry-table" class="table-container"></div>
             </section>
 
@@ -625,9 +786,9 @@
           </div>
         </div>
       </section>
-      </section>
     </main>
 
-    <script src="/app.js" defer></script>
+    <script src="/school-score.js?v=20260701-25" defer></script>
+    <script src="/app.js?v=20260701-25" defer></script>
   </body>
   </html>

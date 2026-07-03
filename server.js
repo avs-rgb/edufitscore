@@ -2,8 +2,10 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
+const ExcelJS = require('exceljs');
 const { loadSheetsByGender, scoreMetric } = require('./lib/workbook');
 const { sendMail } = require('./lib/mailer');
+const { matchSchoolScoreTableResult } = require('./public/school-score');
 const {
   verifyUser,
   createUser,
@@ -11,6 +13,20 @@ const {
   changeUserPassword,
   deactivateUser,
   listUsers,
+  listSchools,
+  listSchoolAdminOverview,
+  listSchoolScoreTables,
+  listPublicSchoolScoreTables,
+  updateSchoolScoreTableSettings,
+  createSchoolScoreTable,
+  updateSchoolScoreTable,
+  deleteSchoolScoreTable,
+  setSchoolTeacherStatus,
+  createSchoolInvite,
+  removeSchoolTeacher,
+  requestTeacherSchool,
+  permanentlyDeleteUser,
+  updateTeacherClassHistorySemester,
   listInactiveUsers,
   restoreUserByEmail,
   setUserActive,
@@ -29,6 +45,7 @@ const {
   deleteSession,
   listTeacherClasses,
   getTeacherClass,
+  getTeacherClassScoreTable,
   createTeacherClass,
   updateTeacherClass,
   deleteTeacherClass,
@@ -41,8 +58,20 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
-
-app.use(express.json({ limit: '10mb' }));
+app.set('trust proxy', 1);
+app.use((request, response, next) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  next();
+});
+app.use((request, response, next) => {
+  if (request.path === '/api/school-admin/score-tables/import') {
+    next();
+    return;
+  }
+  express.json({ limit: '10mb' })(request, response, next);
+});
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (response) => {
@@ -54,11 +83,95 @@ function resolveSheets(gender) {
   return loadSheetsByGender(gender === 'female' ? 'female' : 'male');
 }
 
+function normalizeImportedGender(value) {
+  const text = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (['male', 'boys', 'boy', 'בנים', 'בן'].includes(text)) return 'male';
+  if (['female', 'girls', 'girl', 'בנות', 'בת'].includes(text)) return 'female';
+  if (['other', 'mixed', 'mix', 'coed', 'מעורב', 'מעורבת', 'בנים ובנות'].includes(text)) return 'other';
+  return '';
+}
+
+function normalizeImportedGrade(value) {
+  const text = String(value || '').trim().replace(/"/g, '״').replace(/'/g, '׳');
+  const numeric = Number(text);
+  if (Number.isInteger(numeric)) return numeric;
+  const gradeMap = {
+    'א': 1,
+    'א׳': 1,
+    'ב': 2,
+    'ב׳': 2,
+    'ג': 3,
+    'ג׳': 3,
+    'ד': 4,
+    'ד׳': 4,
+    'ה': 5,
+    'ה׳': 5,
+    'ו': 6,
+    'ו׳': 6,
+    'ז': 7,
+    'ז׳': 7,
+    'ח': 8,
+    'ח׳': 8,
+    'ט': 9,
+    'ט׳': 9,
+    'י': 10,
+    'י׳': 10,
+    'יא': 11,
+    'י״א': 11,
+    'יב': 12,
+    'י״ב': 12,
+  };
+  return gradeMap[text] || '';
+}
+
+function importedCellValue(cell) {
+  const value = cell?.value;
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') {
+    if (value.text !== undefined) return String(value.text);
+    if (value.result !== undefined) return String(value.result);
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text || '').join('');
+    if (value.hyperlink && value.text) return String(value.text);
+  }
+  return String(value);
+}
+
+async function parseImportedScoreTables(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  return workbook.worksheets.map((worksheet) => {
+    const values = [];
+    worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+      values[rowNumber - 1] = [];
+      row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+        values[rowNumber - 1][columnNumber - 1] = importedCellValue(cell);
+      });
+    });
+    const grade = normalizeImportedGrade(values[0]?.[1]);
+    const genderGroup = normalizeImportedGender(values[1]?.[1]);
+    const startingScore = Number(values[2]?.[1] || 0);
+    const subjectNames = (values[4] || []).slice(1).map((value) => String(value || '').trim()).filter(Boolean);
+    const subjects = subjectNames.map((name, index) => ({ id: `subject-${index + 1}`, name }));
+    const rows = values.slice(5).map((row) => {
+      const score = Number(row[0]);
+      if (!Number.isInteger(score)) return null;
+      const rowValues = {};
+      subjects.forEach((subject, index) => {
+        rowValues[subject.id] = score === 0 ? '0' : String(row[index + 1] || '').trim();
+      });
+      return { score, values: rowValues };
+    }).filter(Boolean);
+
+    return { sheetName: worksheet.name, grade, genderGroup, startingScore, subjects, rows };
+  }).filter((table) => table.grade || table.genderGroup || table.subjects.length || table.rows.length);
+}
+
 function sessionCookieOptions(expiresAt) {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://'),
     expires: new Date(expiresAt),
     path: '/',
   };
@@ -91,6 +204,20 @@ function requireTeacherOrAdmin(request, response, next) {
 
   if (!['teacher', 'admin'].includes(request.authUser.role)) {
     response.status(403).json({ error: 'Teacher access required' });
+    return;
+  }
+
+  next();
+}
+
+function requireSchoolAdmin(request, response, next) {
+  if (!request.authUser) {
+    response.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (!request.authUser.isSchoolAdmin) {
+    response.status(403).json({ error: 'School admin access required' });
     return;
   }
 
@@ -160,6 +287,19 @@ app.get('/api/auth/me', (request, response) => {
   response.json({ user: request.authUser || null });
 });
 
+app.get('/api/schools', async (request, response) => {
+  response.json({ schools: await listSchools() });
+});
+
+app.get('/api/schools/:schoolId/score-tables', async (request, response) => {
+  const data = await listPublicSchoolScoreTables(Number(request.params.schoolId));
+  if (!data) {
+    response.status(404).json({ error: 'SCHOOL_NOT_FOUND' });
+    return;
+  }
+  response.json(data);
+});
+
 app.post('/api/auth/login', async (request, response) => {
   const { email, password } = request.body || {};
   const user = await verifyUser(email, password);
@@ -175,7 +315,7 @@ app.post('/api/auth/login', async (request, response) => {
 });
 
 app.post('/api/auth/signup', async (request, response) => {
-  const { firstName, lastName, email, phone, city, schoolName, password, passwordRepeat } = request.body || {};
+  const { firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password, passwordRepeat } = request.body || {};
 
   if (password !== passwordRepeat) {
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
@@ -183,7 +323,7 @@ app.post('/api/auth/signup', async (request, response) => {
   }
 
   try {
-    const user = await createUser({ firstName, lastName, email, phone, city, schoolName, password });
+    const user = await createUser({ firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password });
     const session = await createSession(user.id);
     response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
     response.status(201).json({ user });
@@ -200,6 +340,11 @@ app.post('/api/auth/signup', async (request, response) => {
 
     if (error.message === 'MISSING_REQUIRED_FIELDS') {
       response.status(400).json({ error: 'MISSING_REQUIRED_FIELDS' });
+      return;
+    }
+
+    if (['MISSING_SCHOOL', 'SCHOOL_ADMIN_EXISTS', 'SCHOOL_LIMIT_REACHED', 'INVALID_INVITE', 'INVITE_EMAIL_MISMATCH'].includes(error.message) || String(error.message || '').startsWith('TEACHER_ALREADY_LINKED_')) {
+      response.status(400).json({ error: error.message });
       return;
     }
 
@@ -239,7 +384,7 @@ app.post('/api/auth/forgot-password', async (request, response) => {
       });
     }
   } catch (error) {
-    console.error('Forgot password failed:', error);
+    console.error('Forgot password failed:', error.message || 'MAIL_ERROR');
   }
 
   response.json(neutralResponse);
@@ -344,6 +489,151 @@ app.get('/api/admin/inactive-users', requireAuth, async (request, response) => {
   response.json({ users: await listInactiveUsers() });
 });
 
+app.get('/api/school-admin/overview', requireSchoolAdmin, async (request, response) => {
+  try {
+    response.json(await listSchoolAdminOverview(request.authUser.id));
+  } catch (error) {
+    response.status(403).json({ error: 'SCHOOL_ADMIN_NOT_FOUND' });
+  }
+});
+
+app.get('/api/school-admin/score-tables', requireSchoolAdmin, async (request, response) => {
+  try {
+    response.json(await listSchoolScoreTables(request.authUser.id));
+  } catch (error) {
+    response.status(403).json({ error: error.message || 'SCORE_TABLES_NOT_AVAILABLE' });
+  }
+});
+
+app.patch('/api/school-admin/score-table-settings', requireSchoolAdmin, async (request, response) => {
+  try {
+    response.json({ settings: await updateSchoolScoreTableSettings(request.authUser.id, request.body || {}) });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'SETTINGS_UPDATE_FAILED' });
+  }
+});
+
+app.post('/api/school-admin/score-tables', requireSchoolAdmin, async (request, response) => {
+  try {
+    response.status(201).json({ table: await createSchoolScoreTable(request.authUser.id, request.body || {}) });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'SCORE_TABLE_CREATE_FAILED' });
+  }
+});
+
+app.post('/api/school-admin/score-tables/import', requireSchoolAdmin, (request, response) => {
+  const chunks = [];
+  let size = 0;
+  request.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > 5 * 1024 * 1024) {
+      request.destroy(new Error('IMPORT_FILE_TOO_LARGE'));
+      return;
+    }
+    chunks.push(chunk);
+  });
+  request.on('error', () => response.status(400).json({ error: 'IMPORT_READ_FAILED' }));
+  request.on('end', async () => {
+  try {
+    const fileBuffer = Buffer.concat(chunks);
+    if (!fileBuffer.length) {
+      response.status(400).json({ error: 'IMPORT_FILE_REQUIRED' });
+      return;
+    }
+
+    const parsedTables = await parseImportedScoreTables(fileBuffer);
+    const created = [];
+    const skipped = [];
+
+    for (const table of parsedTables) {
+      try {
+        if (!table.grade || !table.genderGroup || !table.subjects.length || !table.rows.length) {
+          skipped.push({ sheetName: table.sheetName, error: 'INVALID_SHEET_STRUCTURE' });
+          continue;
+        }
+        created.push(await createSchoolScoreTable(request.authUser.id, table));
+      } catch (error) {
+        skipped.push({ sheetName: table.sheetName, error: error.message || 'IMPORT_TABLE_FAILED' });
+      }
+    }
+
+    response.status(created.length ? 201 : 400).json({ created, skipped });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'IMPORT_FAILED' });
+  }
+  });
+});
+
+app.put('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async (request, response) => {
+  try {
+    const updated = await updateSchoolScoreTable(request.authUser.id, Number(request.params.tableId), request.body || {});
+    if (!updated) {
+      response.status(404).json({ error: 'SCORE_TABLE_NOT_FOUND' });
+      return;
+    }
+    response.json({ table: updated });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'SCORE_TABLE_UPDATE_FAILED' });
+  }
+});
+
+app.delete('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async (request, response) => {
+  try {
+    const deleted = await deleteSchoolScoreTable(request.authUser.id, Number(request.params.tableId));
+    if (!deleted) {
+      response.status(404).json({ error: 'SCORE_TABLE_NOT_FOUND' });
+      return;
+    }
+    response.json({ ok: true });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'SCORE_TABLE_DELETE_FAILED' });
+  }
+});
+
+app.patch('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, async (request, response) => {
+  try {
+    const updated = await setSchoolTeacherStatus(request.authUser.id, Number(request.params.membershipId), request.body?.status);
+    if (!updated) {
+      response.status(404).json({ error: 'MEMBERSHIP_NOT_FOUND' });
+      return;
+    }
+    response.json({ ok: true });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'STATUS_UPDATE_FAILED' });
+  }
+});
+
+app.delete('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, async (request, response) => {
+  try {
+    const deleted = await removeSchoolTeacher(request.authUser.id, Number(request.params.membershipId));
+    if (!deleted) {
+      response.status(404).json({ error: 'MEMBERSHIP_NOT_FOUND' });
+      return;
+    }
+    response.json({ ok: true });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'REMOVE_FAILED' });
+  }
+});
+
+app.post('/api/school-admin/invites', requireSchoolAdmin, async (request, response) => {
+  try {
+    const invite = await createSchoolInvite(request.authUser.id, request.body || {});
+    const inviteUrl = `${publicBaseUrl}/?invite=${encodeURIComponent(invite.token)}#signup`;
+    response.status(201).json({ invite, inviteUrl });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'INVITE_FAILED' });
+  }
+});
+
+app.post('/api/teacher/school-requests', requireAuth, async (request, response) => {
+  try {
+    response.status(201).json({ memberships: await requestTeacherSchool(request.authUser.id, Number(request.body?.schoolId)) });
+  } catch (error) {
+    response.status(400).json({ error: error.message || 'REQUEST_FAILED' });
+  }
+});
+
 app.get('/api/admin/users', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
@@ -444,6 +734,21 @@ app.patch('/api/admin/users/:userId/status', requireAuth, async (request, respon
   }
 });
 
+app.delete('/api/admin/users/:userId/permanent', requireAuth, async (request, response) => {
+  if (request.authUser.role !== 'admin') {
+    response.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  try {
+    await permanentlyDeleteUser(Number(request.params.userId));
+    await logAdminAction(request.authUser.id, Number(request.params.userId), 'permanent_delete_user');
+    response.json({ ok: true });
+  } catch (error) {
+    response.status(error.message === 'USER_ACTIVE' ? 400 : 404).json({ error: error.message });
+  }
+});
+
 app.post('/api/admin/users/:userId/reset-password', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
@@ -491,6 +796,15 @@ app.get('/api/teacher/classes', requireTeacherOrAdmin, async (request, response)
   response.json({ classes: await listTeacherClasses(request.authUser.id) });
 });
 
+app.get('/api/teacher/classes/:classId/score-table', requireTeacherOrAdmin, async (request, response) => {
+  const result = await getTeacherClassScoreTable(request.authUser.id, Number(request.params.classId));
+  if (!result) {
+    response.status(404).json({ error: 'CLASS_NOT_FOUND' });
+    return;
+  }
+  response.json(result);
+});
+
 app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (request, response) => {
   const teacherClass = await getTeacherClass(request.authUser.id, Number(request.params.classId));
 
@@ -517,6 +831,22 @@ app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrA
   response.json({ ok: true });
 });
 
+app.patch('/api/teacher/classes/:classId/history/:historyId/semester', requireTeacherOrAdmin, async (request, response) => {
+  const updated = await updateTeacherClassHistorySemester(
+    request.authUser.id,
+    Number(request.params.classId),
+    Number(request.params.historyId),
+    request.body?.semester
+  );
+
+  if (!updated) {
+    response.status(404).json({ error: 'History entry not found' });
+    return;
+  }
+
+  response.json({ entry: updated });
+});
+
 app.post('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
   try {
     const created = await createTeacherClass(request.authUser.id, request.body || {});
@@ -524,6 +854,10 @@ app.post('/api/teacher/classes', requireTeacherOrAdmin, async (request, response
   } catch (error) {
     if (error.message === 'CLASS_LIMIT_REACHED') {
       response.status(400).json({ error: 'Class limit reached' });
+      return;
+    }
+    if (error.message === 'SCHOOL_ACCESS_DENIED') {
+      response.status(403).json({ error: 'SCHOOL_ACCESS_DENIED' });
       return;
     }
 
@@ -537,7 +871,16 @@ app.put('/api/teacher/classes/reorder', requireTeacherOrAdmin, async (request, r
 });
 
 app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, response) => {
-  const updated = await updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
+  let updated;
+  try {
+    updated = await updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
+  } catch (error) {
+    if (error.message === 'SCHOOL_ACCESS_DENIED') {
+      response.status(403).json({ error: 'SCHOOL_ACCESS_DENIED' });
+      return;
+    }
+    throw error;
+  }
 
   if (!updated) {
     response.status(404).json({ error: 'Class not found' });
@@ -571,40 +914,100 @@ app.post('/api/score', (request, response) => {
   response.json(buildScoreResponse(sheet, values));
 });
 
-app.post('/api/bulk-score', requireAuth, async (request, response) => {
-  const { sheetId, students, gender, classId, semester } = request.body || {};
-  const sheets = resolveSheets(gender);
-  const sheet = sheets.find((item) => item.id === sheetId);
-
-  if (!sheet) {
-    response.status(404).json({ error: 'Sheet not found' });
-    return;
-  }
-
-  const normalizedStudents = Array.isArray(students) ? students : [];
-
-  const responseBody = {
+function buildSchoolScoreResponse(table, students) {
+  const gradeLabels = { 1: 'א׳', 2: 'ב׳', 3: 'ג׳', 4: 'ד׳', 5: 'ה׳', 6: 'ו׳', 7: 'ז׳', 8: 'ח׳', 9: 'ט׳', 10: 'י׳', 11: 'י״א', 12: 'י״ב' };
+  const genderLabels = { male: 'בנים', female: 'בנות', other: 'מעורב' };
+  return {
     sheet: {
-      id: sheet.id,
-      name: sheet.name,
+      id: `school_score_${table.id}`,
+      name: `${gradeLabels[Number(table.grade)] || table.grade} ${genderLabels[table.genderGroup] || table.genderGroup}`,
     },
-    students: normalizedStudents.map((student, index) => {
+    students: students.map((student, index) => {
       const values = student?.values || {};
-      const scored = buildScoreResponse(sheet, values);
-
+      const results = table.subjects.map((subject) => {
+        const rawValue = String(values[subject.id] || '').trim();
+        const matchedRow = matchSchoolScoreTableResult(table, subject.id, rawValue);
+        return {
+          key: subject.id,
+          label: subject.name,
+          enteredValue: rawValue,
+          result: rawValue ? { score: matchedRow?.score ?? null, matchedValue: matchedRow?.matchedValue || rawValue } : null,
+        };
+      });
+      const scores = results.map((item) => item.result?.score).filter((score) => Number.isFinite(score));
       return {
         studentName: student?.studentName || `תלמיד ${index + 1}`,
-        ...scored,
-        results: scored.results.map((item) => ({
-          ...item,
-          enteredValue: values[item.key] || '',
-        })),
+        averageScore: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+        results,
       };
     }),
   };
+}
+
+app.post('/api/bulk-score', requireAuth, async (request, response) => {
+  if (!request.authUser.canEnterScores) {
+    response.status(403).json({ error: 'SCORE_ACCESS_PENDING_APPROVAL' });
+    return;
+  }
+
+  const { sheetId, students, gender, classId, semester } = request.body || {};
+  const normalizedStudents = Array.isArray(students) ? students : [];
+  let responseBody;
+  let historyEntry = null;
+
+  if (String(sheetId || '').startsWith('school_score_')) {
+    const resolved = classId ? await getTeacherClassScoreTable(request.authUser.id, Number(classId)) : null;
+    if (!resolved) {
+      response.status(404).json({ error: 'CLASS_NOT_FOUND' });
+      return;
+    }
+    if (!resolved.table) {
+      response.status(404).json({ error: resolved.error || 'SCHOOL_SCORE_TABLE_NOT_FOUND' });
+      return;
+    }
+    if (`school_score_${resolved.table.id}` !== sheetId) {
+      response.status(409).json({ error: 'SCORE_TABLE_MISMATCH' });
+      return;
+    }
+    responseBody = buildSchoolScoreResponse(resolved.table, normalizedStudents);
+  } else {
+    const sheets = resolveSheets(gender);
+    const sheet = sheets.find((item) => item.id === sheetId);
+
+    if (!sheet) {
+      response.status(404).json({ error: 'Sheet not found' });
+      return;
+    }
+
+    responseBody = {
+      sheet: {
+        id: sheet.id,
+        name: sheet.name,
+      },
+      students: normalizedStudents.map((student, index) => {
+        const values = student?.values || {};
+        const scored = buildScoreResponse(sheet, values);
+
+        return {
+          studentName: student?.studentName || `תלמיד ${index + 1}`,
+          ...scored,
+          results: scored.results.map((item) => ({
+            ...item,
+            enteredValue: values[item.key] || '',
+          })),
+        };
+      }),
+    };
+  }
 
   if (classId) {
-    await appendClassHistory(Number(classId), 'calculated', {
+    const teacherClass = await getTeacherClass(request.authUser.id, Number(classId));
+    if (!teacherClass) {
+      response.status(404).json({ error: 'CLASS_NOT_FOUND' });
+      return;
+    }
+
+    historyEntry = await appendClassHistory(Number(classId), 'calculated', {
       semester: semester === 'b' ? 'b' : 'a',
       studentCount: normalizedStudents.length,
       rawStudents: normalizedStudents,
@@ -616,7 +1019,7 @@ app.post('/api/bulk-score', requireAuth, async (request, response) => {
     });
   }
 
-  response.json(responseBody);
+  response.json({ ...responseBody, historyEntry });
 });
 
 app.listen(port, () => {

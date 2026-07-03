@@ -5,18 +5,23 @@
   "main": "server.js",
   "scripts": {
     "build:data": "node scripts/build-data.js data/source/score.xlsx",
+    "build:school-template": "node scripts/build-school-score-template.js",
+    "test:critical": "node scripts/test-critical.js",
     "start": "node server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20 <27"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.1",
     "cookie-parser": "^1.4.7",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "pg": "^8.21.0",
-    "xlsx": "^0.18.5"
+    "pg": "^8.21.0"
   }
 }

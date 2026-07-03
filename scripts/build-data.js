@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 
 const workbookPath = process.argv[2];
 const outputPath = path.join(__dirname, '..', 'data', 'score-data.json');
@@ -143,13 +143,31 @@ function normalizeValue(rawValue, valueType) {
   return { raw: numericValue, comparable: numericValue, display: String(numericValue) };
 }
 
-function extractMainTableRows(sheet) {
-  const rows = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: '',
-    blankrows: false,
-    raw: false,
+function cellValue(cell) {
+  const value = cell?.value;
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value;
+  if (typeof value === 'object') {
+    if (value.text !== undefined) return value.text;
+    if (value.result !== undefined) return value.result;
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text || '').join('');
+  }
+  return value;
+}
+
+function worksheetRows(worksheet) {
+  const rows = [];
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    rows[rowNumber - 1] = [];
+    row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+      rows[rowNumber - 1][columnNumber - 1] = cellValue(cell);
+    });
   });
+  return rows.filter(Boolean);
+}
+
+function extractMainTableRows(worksheet) {
+  const rows = worksheetRows(worksheet);
 
   if (!rows.length || rows[0][0] !== 'ציון') {
     return null;
@@ -248,12 +266,12 @@ function buildMetric(header, rows, columnIndex) {
   };
 }
 
-function loadSheets() {
-  const workbook = XLSX.readFile(workbookPath);
+async function loadSheets() {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(workbookPath);
 
-  return workbook.SheetNames.map((sheetName) => {
-    const sheet = workbook.Sheets[sheetName];
-    const rows = extractMainTableRows(sheet);
+  return workbook.worksheets.map((worksheet) => {
+    const rows = extractMainTableRows(worksheet);
 
     if (!rows) {
       return null;
@@ -280,8 +298,8 @@ function loadSheets() {
     }));
 
     return {
-      id: `sheet_${sheetName}`,
-      name: sheetName,
+      id: `sheet_${worksheet.name}`,
+      name: worksheet.name,
       scoreRange: {
         max: Number(orderedRows[1][0]),
         min: Number(orderedRows[orderedRows.length - 1][0]),
@@ -295,13 +313,20 @@ function loadSheets() {
   }).filter(Boolean);
 }
 
-const data = {
-  generatedAt: new Date().toISOString(),
-  sourceWorkbook: path.basename(workbookPath),
-  sheets: loadSheets(),
-};
+async function main() {
+  const data = {
+    generatedAt: new Date().toISOString(),
+    sourceWorkbook: path.basename(workbookPath),
+    sheets: await loadSheets(),
+  };
 
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, JSON.stringify(data, null, 2));
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(data, null, 2));
 
-console.log(`Wrote ${outputPath}`);
+  console.log(`Wrote ${outputPath}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

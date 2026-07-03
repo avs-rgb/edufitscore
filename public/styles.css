@@ -346,6 +346,416 @@ p {
   margin-top: 0;
 }
 
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
+.school-invite-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  text-decoration: none;
+}
+
+.admin-users-table {
+  min-width: 0;
+  table-layout: auto;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  white-space: normal;
+}
+
+.compact-admin-users-table {
+  width: 100%;
+  min-width: 1040px;
+  table-layout: fixed;
+}
+
+.compact-admin-users-table th,
+.compact-admin-users-table td {
+  padding: 8px 6px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.compact-admin-users-table .status-toggle {
+  justify-content: center;
+  min-width: 112px;
+  width: 100%;
+  min-height: 30px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  gap: 6px;
+}
+
+.compact-admin-users-table .status-toggle-knob {
+  width: 10px;
+  height: 10px;
+}
+
+.compact-admin-users-table th:nth-child(1),
+.compact-admin-users-table td:nth-child(1) {
+  width: 62px;
+}
+
+.compact-admin-users-table th:nth-child(2),
+.compact-admin-users-table td:nth-child(2) {
+  width: 194px;
+}
+
+.compact-admin-users-table th:nth-child(3),
+.compact-admin-users-table td:nth-child(3) {
+  width: 118px;
+}
+
+.compact-admin-users-table th:nth-child(4),
+.compact-admin-users-table td:nth-child(4) {
+  width: 132px;
+}
+
+.compact-admin-users-table th:nth-child(5),
+.compact-admin-users-table td:nth-child(5) {
+  width: 78px;
+}
+
+.compact-admin-users-table th:nth-child(6),
+.compact-admin-users-table td:nth-child(6),
+.compact-admin-users-table th:nth-child(7),
+.compact-admin-users-table td:nth-child(7) {
+  width: 96px;
+}
+
+.compact-admin-users-table th:nth-child(8),
+.compact-admin-users-table td:nth-child(8) {
+  width: 52px;
+}
+
+.compact-admin-users-table th:nth-child(9),
+.compact-admin-users-table td:nth-child(9) {
+  width: 116px;
+}
+
+.admin-actions-cell {
+  display: table-cell;
+}
+
+.admin-actions-stack {
+  display: grid;
+  gap: 5px;
+  justify-items: stretch;
+}
+
+.admin-actions-stack .back-home-button,
+.admin-actions-stack .danger-button {
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+}
+
+.admin-phone-line {
+  display: block;
+}
+
+.admin-email-line {
+  display: block;
+}
+
+.admin-email-cell,
+.admin-email-line {
+  direction: ltr;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
+.admin-name-cell {
+  max-width: 118px;
+}
+
+.school-admin-teacher-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-user-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.school-admin-teacher-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2c3ad;
+  border-radius: 18px;
+  background: #fffdfa;
+}
+
+.school-admin-teacher-main,
+.school-admin-teacher-details,
+.school-admin-teacher-classes {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.school-admin-teacher-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  justify-content: stretch;
+  align-items: center;
+}
+
+.school-admin-teacher-main strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.school-admin-teacher-main span {
+  justify-self: center;
+  min-width: 86px;
+  text-align: center;
+}
+
+.school-admin-teacher-details span,
+.school-admin-teacher-classes span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fbf0e7;
+}
+
+.teacher-entry-actions.school-admin-teacher-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 180px);
+  gap: 8px;
+  width: auto;
+  justify-content: end;
+}
+
+.teacher-entry-actions.school-admin-teacher-actions button {
+  width: 100%;
+}
+
+.admin-user-card-actions {
+  justify-content: flex-start;
+}
+
+.score-table-toolbar,
+.score-table-create-form,
+.score-table-range-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.score-table-range-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.score-table-range-form button {
+  grid-row: 3;
+}
+
+.score-table-toolbar .teacher-panel-button,
+.score-table-toolbar .back-home-button,
+.score-table-toolbar .teacher-sort-select,
+.score-table-import-button {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-table-import-button {
+  border-radius: 16px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.score-table-create-form {
+  grid-template-columns: 1fr;
+}
+
+.score-table-create-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  width: 100%;
+}
+
+.score-table-create-row .field-label {
+  grid-column: 2;
+}
+
+.score-table-template-download {
+  grid-column: 1;
+  align-self: stretch;
+}
+
+.score-table-create-row select,
+.score-table-create-row input {
+  grid-column: 3;
+}
+
+.score-table-create-row select,
+.score-table-create-row input {
+  width: 100%;
+}
+
+.score-table-create-row > * {
+  direction: rtl;
+}
+
+.score-table-template-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.score-table-create-row .field-label {
+  margin-bottom: 0;
+  align-self: center;
+}
+
+.score-table-create-actions {
+  grid-column: 1 / -1;
+}
+
+.score-table-create-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.score-table-create-actions > * {
+  width: 100%;
+  min-width: 0;
+}
+
+.score-table-card .teacher-class-card-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.score-table-card .teacher-class-card-actions button {
+  width: 100%;
+}
+
+.score-table-builder .teacher-entry-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: min(100%, 520px);
+}
+
+.score-table-builder .teacher-entry-actions button {
+  width: 100%;
+  min-width: 0;
+}
+
+.score-table-add-subject-button {
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  justify-self: start;
+  border-radius: 14px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.score-table-add-subject-header,
+.score-table-add-subject-filler {
+  min-width: 50px !important;
+  width: 50px;
+  background: #f5e5d8;
+}
+
+.score-table-create-panel,
+.score-table-builder {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #ead8ca;
+  border-radius: 18px;
+  background: #fff8f2;
+}
+
+.score-table-card strong {
+  color: #5a372c;
+}
+
+.school-score-edit-table {
+  direction: rtl;
+  table-layout: fixed;
+  min-width: max-content;
+}
+
+.school-score-edit-table th,
+.school-score-edit-table td {
+  min-width: 110px;
+  padding: 6px;
+  vertical-align: middle;
+}
+
+.school-score-edit-table .score-table-grade-header,
+.school-score-edit-table .score-table-grade-cell {
+  min-width: 70px;
+  width: 70px;
+  position: sticky;
+  right: 0;
+  z-index: 4;
+  background: #f5e5d8;
+  box-shadow: -8px 0 12px rgba(90, 55, 44, 0.08);
+  color: #5a372c;
+  font-weight: 800;
+}
+
+.school-score-edit-table .score-table-grade-header {
+  z-index: 5;
+}
+
+.score-table-subject-input,
+.score-table-cell-input {
+  min-width: 92px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.score-table-cell-input {
+  user-select: text;
+  cursor: text;
+  background: #fffdf9;
+  border: 1px solid #ddc3ae;
+}
+
+.score-table-cell-input:focus {
+  outline: none;
+  border-color: #c9734f;
+  box-shadow: 0 0 0 4px rgba(201, 115, 79, 0.14);
+}
+
+.score-table-cell-input[contenteditable="false"] {
+  background: #f1e4d8;
+  color: #6b4333;
+}
+
 .subtitle {
   max-width: none;
   color: #7a5a4c;
@@ -662,6 +1072,38 @@ p {
   font-size: 0.88rem;
 }
 
+.admin-sort-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 800;
+}
+
+.admin-sort-header:hover {
+  transform: none;
+  filter: none;
+  text-decoration: underline;
+}
+
+.admin-sort-header.is-active {
+  color: #8f3f22;
+}
+
+.admin-sort-marker {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
 .admin-users-table td {
   background: #fffaf5;
   color: #3a2417;
@@ -670,6 +1112,67 @@ p {
 
 .admin-users-table tbody tr:nth-child(even) td {
   background: #f7eadf;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(1),
+.admin-users-table.compact-admin-users-table td:nth-child(1) {
+  width: 62px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(2),
+.admin-users-table.compact-admin-users-table td:nth-child(2) {
+  width: 194px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(3),
+.admin-users-table.compact-admin-users-table td:nth-child(3) {
+  width: 118px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(4),
+.admin-users-table.compact-admin-users-table td:nth-child(4) {
+  width: 132px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(5),
+.admin-users-table.compact-admin-users-table td:nth-child(5) {
+  width: 78px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(6),
+.admin-users-table.compact-admin-users-table td:nth-child(6),
+.admin-users-table.compact-admin-users-table th:nth-child(7),
+.admin-users-table.compact-admin-users-table td:nth-child(7) {
+  width: 96px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(8),
+.admin-users-table.compact-admin-users-table td:nth-child(8) {
+  width: 52px;
+}
+
+.admin-users-table.compact-admin-users-table th:nth-child(9),
+.admin-users-table.compact-admin-users-table td:nth-child(9) {
+  width: 116px;
+}
+
+.admin-users-table.compact-admin-users-table .status-toggle {
+  justify-content: center;
+  min-width: 112px;
+  width: 100%;
+  border-radius: 10px;
+  gap: 6px;
+}
+
+.admin-users-table.compact-admin-users-table .status-toggle-knob {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  background: currentColor;
+}
+
+.admin-users-table.compact-admin-users-table .status-toggle-knob::after {
+  display: none;
 }
 
 .admin-date-cell {
@@ -1053,6 +1556,14 @@ p {
   width: min(1600px, calc(100vw - 16px));
 }
 
+#school-admin-score-tables-view .privacy-card {
+  width: min(1600px, calc(100vw - 16px));
+}
+
+#school-admin-view .privacy-card {
+  width: min(1600px, calc(100vw - 16px));
+}
+
 .privacy-header {
   display: flex;
   align-items: center;
@@ -1154,6 +1665,7 @@ p {
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-start;
+  justify-content: flex-start;
   margin-bottom: 8px;
   padding: 10px;
   background: rgba(255, 251, 246, 0.72);
@@ -1167,6 +1679,7 @@ p {
   gap: 12px;
   align-items: flex-start;
   flex: 0 0 auto;
+  order: 4;
 }
 
 .teacher-top-controls {
@@ -1180,6 +1693,45 @@ p {
 
 .top-controls > .class-selector-panel {
   order: 2;
+}
+
+.top-controls > .student-source-panel,
+.top-controls > .student-school-score-card {
+  order: 0;
+}
+
+.top-controls > .student-source-panel {
+  margin-inline-start: 0;
+}
+
+.student-source-panel,
+.student-school-score-card {
+  width: 260px;
+}
+
+#student-school-grade-card {
+  width: 520px;
+}
+
+#student-school-grade-buttons {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#student-school-grade-buttons[data-grade-count="5"],
+#student-school-grade-buttons[data-grade-count="6"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#student-school-grade-buttons[data-grade-count="1"] {
+  grid-template-columns: 1fr;
+}
+
+#student-school-grade-buttons[data-grade-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#student-school-grade-buttons[data-grade-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .tabs {
@@ -1587,6 +2139,8 @@ p {
 .teacher-class-history {
   display: grid;
   gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .teacher-history-timeline {
@@ -1641,6 +2195,12 @@ p {
   flex-wrap: wrap;
 }
 
+.teacher-class-history {
+  margin-top: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .teacher-history-delete-button {
   width: auto;
   min-height: 34px;
@@ -1676,7 +2236,12 @@ p {
   width: 100%;
   margin-top: 8px;
   border-collapse: collapse;
-  min-width: 0;
+  min-width: max-content;
+}
+
+.teacher-history-results-wrap {
+  width: 100%;
+  overflow-x: auto;
 }
 
 .teacher-history-results-table th,
@@ -1981,6 +2546,14 @@ button:hover {
   background: #8f5a44;
 }
 
+.score-table-template-download.secondary-button {
+  background: #f1dccb;
+  border: 1px solid rgba(160, 106, 78, 0.28);
+  border-radius: 16px;
+  color: #6b4333;
+  font-weight: 700;
+}
+
 .sheet-summary {
   margin-top: 12px;
   color: #8f6a58;
@@ -2077,6 +2650,13 @@ tbody tr:nth-child(5n + 1) {
 
 .score-55-row {
   background: #dbeafe !important;
+}
+
+.school-score-display-grade-header,
+.school-score-display-grade-cell {
+  background: #e7c9b3 !important;
+  color: #5a372c;
+  font-weight: 800;
 }
 
 .teacher-entry-table input {

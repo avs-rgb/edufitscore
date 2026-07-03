@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 
 const workbookPath = process.argv[2];
 const outputPath = path.join(__dirname, '..', 'data', 'girls-score-data.json');
@@ -54,18 +54,33 @@ function normalizeGirlsValue(rawValue, valueType) {
   return { raw: numericValue, comparable: seconds, display: formatSeconds(seconds) };
 }
 
-function loadGirlsSheets() {
-  const workbook = XLSX.readFile(workbookPath, { cellFormula: true, raw: false });
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(worksheet, {
-    header: 1,
-    defval: '',
-    blankrows: false,
-    raw: true,
-  }).map((row) => row.slice(0, 9));
+function cellValue(cell) {
+  const value = cell?.value;
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value;
+  if (typeof value === 'object') {
+    if (value.result !== undefined) return value.result;
+    if (value.text !== undefined) return value.text;
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text || '').join('');
+  }
+  return value;
+}
 
-  const headers = rows[0].map((header) => String(header).trim()).filter(Boolean);
-  const bodyRows = rows.slice(1);
+async function loadGirlsSheets() {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(workbookPath);
+  const worksheet = workbook.worksheets[0];
+  const rows = [];
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    rows[rowNumber - 1] = [];
+    row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+      rows[rowNumber - 1][columnNumber - 1] = cellValue(cell);
+    });
+  });
+  const compactRows = rows.filter(Boolean).map((row) => row.slice(0, 9));
+
+  const headers = compactRows[0].map((header) => String(header).trim()).filter(Boolean);
+  const bodyRows = compactRows.slice(1);
   const metrics = headers.slice(1).map((header, index) => {
     const columnIndex = index + 1;
     const valueType = detectGirlsValueType(header);
@@ -121,13 +136,20 @@ function loadGirlsSheets() {
   }));
 }
 
-const data = {
-  generatedAt: new Date().toISOString(),
-  sourceWorkbook: path.basename(workbookPath),
-  sheets: loadGirlsSheets(),
-};
+async function main() {
+  const data = {
+    generatedAt: new Date().toISOString(),
+    sourceWorkbook: path.basename(workbookPath),
+    sheets: await loadGirlsSheets(),
+  };
 
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, JSON.stringify(data, null, 2));
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(data, null, 2));
 
-console.log(`Wrote ${outputPath}`);
+  console.log(`Wrote ${outputPath}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
