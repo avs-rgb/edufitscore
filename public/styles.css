@@ -841,6 +841,28 @@ p {
   font-size: 0.875rem;
 }
 
+.quick-start-guide {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #f7ede4;
+  color: #5e4335;
+  border: 1px solid #ead8ca;
+  display: grid;
+  gap: 8px;
+  line-height: 1.55;
+}
+
+.quick-start-guide h3,
+.quick-start-guide p {
+  margin: 0;
+}
+
+.quick-start-guide h3 {
+  font-size: 1rem;
+  color: #3f2d24;
+}
+
 .admin-summary-box {
   padding: 14px;
   border-radius: 16px;
@@ -1875,6 +1897,107 @@ p {
 
 .teacher-panel-header h2 {
   margin-bottom: 0;
+}
+
+.teacher-title-with-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.score-table-create-title {
+  margin-bottom: 12px;
+}
+
+.score-table-create-title h3 {
+  margin: 0;
+}
+
+.inline-help-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.inline-help-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(177, 103, 47, 0.28);
+  background: linear-gradient(135deg, #fffaf4 0%, #f3dcc8 100%);
+  color: #7a3f1f;
+  font-size: 1.05rem;
+  font-style: italic;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(122, 75, 43, 0.14);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  font-family: Georgia, "Times New Roman", serif;
+  cursor: help;
+  transform: translateY(1px);
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.inline-help-button:hover,
+.inline-help-button:focus-visible {
+  background: linear-gradient(135deg, #ffffff 0%, #edd0b8 100%);
+  border-color: rgba(177, 103, 47, 0.5);
+  box-shadow: 0 10px 22px rgba(122, 75, 43, 0.2);
+  transform: translateY(-1px);
+}
+
+.inline-help-button:focus-visible {
+  outline: 3px solid rgba(177, 103, 47, 0.28);
+  outline-offset: 2px;
+}
+
+.inline-help-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: auto;
+  left: 50%;
+  z-index: 30;
+  width: min(320px, calc(100vw - 40px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #3f2d24;
+  color: #fff7ef;
+  box-shadow: 0 16px 36px rgba(42, 30, 22, 0.22);
+  display: grid;
+  gap: 7px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+}
+
+.inline-help-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: auto;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: #3f2d24;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.inline-help-tooltip span {
+  display: block;
+}
+
+.inline-help-anchor:hover .inline-help-tooltip,
+.inline-help-anchor:focus-within .inline-help-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
 }
 
 .teacher-panel-button {

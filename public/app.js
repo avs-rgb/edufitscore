@@ -1769,8 +1769,7 @@ function selectedSheet() {
     return null;
   }
   if (activeView.startsWith('student')) {
-    const group = selectedDefaultStudentGroup === 'female' ? 'female' : 'male';
-    return sheetSets[group].find((sheet) => sheet.id === selectedDefaultStudentGrade) || sheetSets[group][0];
+    return null;
   }
   const gender = activeView === 'teacher' ? activeTeacherGender() : activeStudentGender();
   return sheetSets[gender].find((sheet) => sheet.id === sheetSelect.value);
@@ -2186,7 +2185,9 @@ async function saveCurrentTeacherClassQuietly() {
 function renderClassTabs() {
   const schoolSheets = (activeView.startsWith('student') || activeView === 'teacher') ? schoolScoreTableSheetsForStudent() : [];
   const exactTeacherSheet = activeView === 'teacher' ? selectedSheet() : null;
-  const sheets = schoolSheets.length ? schoolSheets : sheetSets.male;
+  const sheets = activeView.startsWith('student')
+    ? schoolSheets
+    : schoolSheets.length ? schoolSheets : sheetSets.male;
   if (exactTeacherSheet?.table && !sheets.some((sheet) => sheet.id === exactTeacherSheet.id)) {
     sheets.unshift(exactTeacherSheet);
   }
@@ -2847,7 +2848,7 @@ async function importSchoolScoreTables(event) {
     const skippedCount = Array.isArray(data.skipped) ? data.skipped.length : 0;
 
     if (!response.ok && !createdCount) {
-      schoolScoreTableMessage.textContent = 'ייבוא הקובץ נכשל. ודאו שזה קובץ Excel במבנה התבנית.';
+      schoolScoreTableMessage.textContent = schoolScoreImportErrorMessage(data);
       return;
     }
 
@@ -2871,10 +2872,35 @@ async function importSchoolScoreTables(event) {
       ? `יובאו ${createdCount} טבלאות. ${skippedCount} גיליונות דולגו${reasonText ? `: ${reasonText}.` : '.'}`
       : `יובאו ${createdCount} טבלאות בהצלחה.`;
   } catch (error) {
-    schoolScoreTableMessage.textContent = 'ייבוא הקובץ נכשל. ודאו שזה קובץ Excel במבנה התבנית.';
+    schoolScoreTableMessage.textContent = schoolScoreImportErrorMessage();
   } finally {
     schoolScoreTableImportInput.value = '';
   }
+}
+
+function schoolScoreImportErrorMessage(data = {}) {
+  const reasonLabels = {
+    IMPORT_FILE_REQUIRED: 'לא נבחר קובץ לייבוא.',
+    IMPORT_FILE_TOO_LARGE: 'הקובץ גדול מדי. נסו קובץ עד 5MB.',
+    IMPORT_READ_FAILED: 'לא ניתן לקרוא את הקובץ.',
+    IMPORT_FAILED: 'ייבוא הקובץ נכשל.',
+    SCORE_TABLE_EXISTS: 'כבר קיימת טבלה לאותה שכבה וקבוצה',
+    GRADE_OUT_OF_RANGE: 'השכבה מחוץ לטווח שהוגדר לבית הספר',
+    INVALID_SHEET_STRUCTURE: 'מבנה הגיליון לא תקין',
+    INVALID_GRADE: 'שכבה לא תקינה',
+    INVALID_GENDER_GROUP: 'קבוצה לא תקינה',
+    SCORE_TABLE_LIMIT_REACHED: 'חריגה ממגבלת 36 טבלאות',
+  };
+  const skipped = Array.isArray(data.skipped) ? data.skipped : [];
+  if (skipped.length) {
+    const details = skipped.slice(0, 4).map((item) => {
+      const sheetName = item.sheetName ? `"${item.sheetName}"` : 'גיליון ללא שם';
+      return `${sheetName}: ${reasonLabels[item.error] || item.error || 'שגיאה לא ידועה'}`;
+    }).join('; ');
+    const extra = skipped.length > 4 ? ` ועוד ${skipped.length - 4} גיליונות.` : '';
+    return `ייבוא הקובץ נכשל. ${details}${extra}`;
+  }
+  return reasonLabels[data.error] || 'ייבוא הקובץ נכשל. ודאו שזה קובץ Excel במבנה התבנית: שכבה, קבוצה, ציון התחלתי, שורת ציון ומקצועות.';
 }
 
 function syncActiveSchoolScoreTableFromGrid() {
