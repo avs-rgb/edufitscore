@@ -806,6 +806,60 @@ p {
   min-height: 46px;
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-left: 52px;
+}
+
+.password-toggle {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #7b5141;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  background: rgba(143, 90, 68, 0.1);
+  transform: translateY(-50%);
+}
+
+.password-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(201, 115, 79, 0.16);
+}
+
+.password-toggle-eye {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.password-toggle-slash {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.password-toggle[aria-pressed="true"] .password-toggle-slash {
+  opacity: 1;
+}
+
 .login-submit-button {
   min-height: 52px;
   margin-top: 6px;

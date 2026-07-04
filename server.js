@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 const ExcelJS = require('exceljs');
 const { loadSheetsByGender, scoreMetric } = require('./lib/workbook');
 const { sendMail } = require('./lib/mailer');
@@ -41,6 +42,7 @@ const {
   restoreBackupData,
   getAdminDiagnostics,
   createSession,
+  getSessionCsrfTokenHash,
   findUserBySessionToken,
   deleteSession,
   listTeacherClasses,
@@ -58,7 +60,25 @@ const {
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
+const csrfUnsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 app.set('trust proxy', 1);
+
+function createJsonRateLimit(options) {
+  return rateLimit({
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (request, response) => {
+      response.status(429).json({ error: 'RATE_LIMITED' });
+    },
+    ...options,
+  });
+}
+
+const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
+const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
+const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -177,6 +197,26 @@ function sessionCookieOptions(expiresAt) {
   };
 }
 
+function csrfCookieOptions(expiresAt) {
+  return {
+    httpOnly: false,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://'),
+    expires: new Date(expiresAt),
+    path: '/',
+  };
+}
+
+function setAuthCookies(response, session) {
+  response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
+  response.cookie('edufitscore_csrf', session.csrfToken, csrfCookieOptions(session.expiresAt));
+}
+
+function clearAuthCookies(response) {
+  response.clearCookie('edufitscore_session', { path: '/' });
+  response.clearCookie('edufitscore_csrf', { path: '/' });
+}
+
 async function attachUser(request, response, next) {
   try {
     const token = request.cookies?.edufitscore_session;
@@ -224,7 +264,46 @@ function requireSchoolAdmin(request, response, next) {
   next();
 }
 
+function sameOrigin(request) {
+  const origin = request.get('origin');
+  if (!origin) {
+    return true;
+  }
+
+  return origin === `${request.protocol}://${request.get('host')}`;
+}
+
+async function requireCsrf(request, response, next) {
+  if (!csrfUnsafeMethods.has(request.method) || !request.authUser) {
+    next();
+    return;
+  }
+
+  if (!sameOrigin(request)) {
+    response.status(403).json({ error: 'CSRF_INVALID' });
+    return;
+  }
+
+  const submittedToken = String(request.get('x-csrf-token') || '');
+  const expectedHash = await getSessionCsrfTokenHash(request.cookies?.edufitscore_session);
+  const submittedHash = submittedToken
+    ? crypto.createHash('sha256').update(submittedToken).digest('hex')
+    : '';
+
+  const valid = Boolean(expectedHash && submittedHash)
+    && expectedHash.length === submittedHash.length
+    && crypto.timingSafeEqual(Buffer.from(expectedHash, 'hex'), Buffer.from(submittedHash, 'hex'));
+
+  if (!valid) {
+    response.status(403).json({ error: 'CSRF_INVALID' });
+    return;
+  }
+
+  next();
+}
+
 app.use(attachUser);
+app.use(requireCsrf);
 
 function buildScoreResponse(sheet, values) {
   const results = sheet.metrics.map((metric) => {
@@ -259,7 +338,7 @@ app.get('/api/sheets', (request, response) => {
   });
 });
 
-app.post('/api/graph-snapshots', async (request, response) => {
+app.post('/api/graph-snapshots', graphSnapshotRateLimit, async (request, response) => {
   const snapshot = request.body?.snapshot;
 
   if (!snapshot || !Array.isArray(snapshot.entries) || !Array.isArray(snapshot.series)) {
@@ -300,7 +379,7 @@ app.get('/api/schools/:schoolId/score-tables', async (request, response) => {
   response.json(data);
 });
 
-app.post('/api/auth/login', async (request, response) => {
+app.post('/api/auth/login', authRateLimit, async (request, response) => {
   const { email, password } = request.body || {};
   const user = await verifyUser(email, password);
 
@@ -310,11 +389,11 @@ app.post('/api/auth/login', async (request, response) => {
   }
 
   const session = await createSession(user.id);
-  response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
-  response.json({ user });
+  setAuthCookies(response, session);
+  response.json({ user, csrfToken: session.csrfToken });
 });
 
-app.post('/api/auth/signup', async (request, response) => {
+app.post('/api/auth/signup', signupRateLimit, async (request, response) => {
   const { firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password, passwordRepeat } = request.body || {};
 
   if (password !== passwordRepeat) {
@@ -325,8 +404,8 @@ app.post('/api/auth/signup', async (request, response) => {
   try {
     const user = await createUser({ firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password });
     const session = await createSession(user.id);
-    response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
-    response.status(201).json({ user });
+    setAuthCookies(response, session);
+    response.status(201).json({ user, csrfToken: session.csrfToken });
   } catch (error) {
     if (error.message === 'EMAIL_EXISTS') {
       response.status(409).json({ error: 'EMAIL_EXISTS' });
@@ -357,7 +436,7 @@ app.post('/api/auth/signup', async (request, response) => {
   }
 });
 
-app.post('/api/auth/forgot-password', async (request, response) => {
+app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, response) => {
   const email = String(request.body?.email || '').trim().toLowerCase();
   const neutralResponse = { ok: true };
 
@@ -390,7 +469,7 @@ app.post('/api/auth/forgot-password', async (request, response) => {
   response.json(neutralResponse);
 });
 
-app.post('/api/auth/reset-password', async (request, response) => {
+app.post('/api/auth/reset-password', passwordResetRateLimit, async (request, response) => {
   const { token, newPassword, newPasswordRepeat } = request.body || {};
 
   if (!newPassword || newPassword !== newPasswordRepeat) {
@@ -400,7 +479,7 @@ app.post('/api/auth/reset-password', async (request, response) => {
 
   try {
     await resetPasswordWithToken(token, newPassword);
-    response.clearCookie('edufitscore_session', { path: '/' });
+    clearAuthCookies(response);
     response.json({ ok: true });
   } catch (error) {
     response.status(400).json({ error: 'INVALID_RESET' });
@@ -409,7 +488,7 @@ app.post('/api/auth/reset-password', async (request, response) => {
 
 app.post('/api/auth/logout', async (request, response) => {
   await deleteSession(request.cookies?.edufitscore_session);
-  response.clearCookie('edufitscore_session', { path: '/' });
+  clearAuthCookies(response);
   response.json({ ok: true });
 });
 
@@ -521,7 +600,7 @@ app.post('/api/school-admin/score-tables', requireSchoolAdmin, async (request, r
   }
 });
 
-app.post('/api/school-admin/score-tables/import', requireSchoolAdmin, (request, response) => {
+app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchoolAdmin, (request, response) => {
   const chunks = [];
   let size = 0;
   request.on('data', (chunk) => {

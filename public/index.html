@@ -60,7 +60,16 @@
             <label class="field-label" for="member-email">דוא"ל</label>
             <input id="member-email" name="email" type="email" autocomplete="username" required />
             <label class="field-label" for="member-password">סיסמה</label>
-            <input id="member-password" name="password" type="password" autocomplete="current-password" required />
+            <div class="password-field">
+              <input id="member-password" name="password" type="password" autocomplete="current-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                  <circle cx="12" cy="12" r="3" />
+                  <path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" />
+                </svg>
+              </button>
+            </div>
             <button type="submit" class="home-action-button login-submit-button">כניסה</button>
           </form>
           <button id="forgot-password-button" type="button" class="back-home-button signup-link-button">שכחתי סיסמה</button>
@@ -91,9 +100,19 @@
           <p class="home-subtitle">הקישור תקף לזמן מוגבל וניתן להשתמש בו פעם אחת בלבד.</p>
           <form id="reset-password-form" class="member-login-form">
             <label class="field-label" for="reset-password-new">סיסמה חדשה</label>
-            <input id="reset-password-new" name="newPassword" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="reset-password-new" name="newPassword" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <label class="field-label" for="reset-password-repeat">אימות סיסמה חדשה</label>
-            <input id="reset-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="reset-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <div class="teacher-entry-actions signup-actions">
               <button type="submit" class="home-action-button login-submit-button">שמירת סיסמה חדשה</button>
               <button id="reset-password-back" type="button" class="back-home-button">חזרה לכניסה</button>
@@ -144,9 +163,19 @@
               <input id="signup-school-city" name="schoolCity" type="text" autocomplete="address-level2" list="signup-city-options" />
             </div>
             <label class="field-label" for="signup-password">סיסמה</label>
-            <input id="signup-password" name="password" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="signup-password" name="password" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <label class="field-label" for="signup-password-repeat">אימות סיסמה</label>
-            <input id="signup-password-repeat" name="passwordRepeat" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="signup-password-repeat" name="passwordRepeat" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <div class="teacher-entry-actions signup-actions">
               <button type="submit" class="home-action-button login-submit-button">שליחת הרשמה</button>
               <button id="member-signup-back" type="button" class="back-home-button">חזרה לכניסה</button>
@@ -447,9 +476,19 @@
           <p id="admin-password-message"></p>
           <form id="admin-password-form" class="member-login-form">
             <label class="field-label" for="admin-new-password">סיסמה חדשה</label>
-            <input id="admin-new-password" name="newPassword" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="admin-new-password" name="newPassword" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <label class="field-label" for="admin-new-password-repeat">אימות סיסמה חדשה</label>
-            <input id="admin-new-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+            <div class="password-field">
+              <input id="admin-new-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
             <button id="admin-generate-password" type="button" class="secondary-button teacher-panel-button">יצירת סיסמה זמנית</button>
             <div id="admin-temporary-password" class="admin-temporary-password"></div>
             <div id="admin-password-error" class="login-error" role="alert" aria-live="polite"></div>
@@ -510,11 +549,26 @@
             <form id="profile-password-form" class="member-login-form profile-form">
               <h3>שינוי סיסמה</h3>
               <label class="field-label" for="profile-old-password">סיסמה נוכחית</label>
-              <input id="profile-old-password" name="oldPassword" type="password" autocomplete="current-password" required />
+              <div class="password-field">
+                <input id="profile-old-password" name="oldPassword" type="password" autocomplete="current-password" required />
+                <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                  <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                </button>
+              </div>
               <label class="field-label" for="profile-new-password">סיסמה חדשה</label>
-              <input id="profile-new-password" name="newPassword" type="password" autocomplete="new-password" required />
+              <div class="password-field">
+                <input id="profile-new-password" name="newPassword" type="password" autocomplete="new-password" required />
+                <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                  <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                </button>
+              </div>
               <label class="field-label" for="profile-new-password-repeat">אימות סיסמה חדשה</label>
-              <input id="profile-new-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+              <div class="password-field">
+                <input id="profile-new-password-repeat" name="newPasswordRepeat" type="password" autocomplete="new-password" required />
+                <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                  <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                </button>
+              </div>
               <button type="submit" class="teacher-panel-button">שינוי סיסמה</button>
               <div id="profile-password-message" class="login-error" role="alert" aria-live="polite"></div>
             </form>
@@ -522,7 +576,12 @@
               <h3>השבתת חשבון</h3>
               <p>החשבון יושבת ולא ניתן יהיה להתחבר אליו. הכיתות וההיסטוריה יישמרו בארכיון.</p>
               <label class="field-label" for="profile-deactivate-password">הקלדת סיסמה לאישור</label>
-              <input id="profile-deactivate-password" name="password" type="password" autocomplete="current-password" required />
+              <div class="password-field">
+                <input id="profile-deactivate-password" name="password" type="password" autocomplete="current-password" required />
+                <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                  <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                </button>
+              </div>
               <button id="profile-deactivate-open" type="button" class="danger-button">השבתת חשבון</button>
               <div id="profile-deactivate-message" class="login-error" role="alert" aria-live="polite"></div>
             </form>

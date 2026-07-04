@@ -118,6 +118,25 @@ const schoolScoreTableGenderSelect = document.querySelector('#school-score-table
 const schoolScoreTableStartingScoreInput = document.querySelector('#school-score-table-starting-score');
 const schoolScoreTableCreateCancelButton = document.querySelector('#school-score-table-create-cancel');
 const schoolScoreTableCards = document.querySelector('#school-score-table-cards');
+
+function readCookie(name) {
+  return document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1) || '';
+}
+
+function apiFetch(url, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const headers = new Headers(options.headers || {});
+  const csrfToken = readCookie('edufitscore_csrf');
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
+    headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
+  }
+
+  return fetch(url, { ...options, headers });
+}
 const schoolScoreTableBuilder = document.querySelector('#school-score-table-builder');
 const schoolScoreTableBuilderTitle = document.querySelector('#school-score-table-builder-title');
 const schoolScoreTableSaveButton = document.querySelector('#school-score-table-save');
@@ -1440,7 +1459,7 @@ async function deleteSelectedTeacherHistoryEntry(historyId) {
     return;
   }
 
-  const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}/history/${historyId}`, {
+  const response = await apiFetch(`/api/teacher/classes/${activeTeacherClassId}/history/${historyId}`, {
     method: 'DELETE',
   });
 
@@ -2091,7 +2110,7 @@ async function createTeacherClassFromForm(event) {
     return;
   }
 
-  const response = await fetch('/api/teacher/classes', {
+  const response = await apiFetch('/api/teacher/classes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2126,7 +2145,7 @@ async function saveCurrentTeacherClass(options = {}) {
     values: normalizeTeacherClassValues(teacherClassValues),
   };
 
-  const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}`, {
+  const response = await apiFetch(`/api/teacher/classes/${activeTeacherClassId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2162,7 +2181,7 @@ async function saveCurrentTeacherClassQuietly() {
     values: normalizeTeacherClassValues(teacherClassValues),
   };
 
-  const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}`, {
+  const response = await apiFetch(`/api/teacher/classes/${activeTeacherClassId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2562,7 +2581,7 @@ async function createSchoolAdminInvite(event) {
   event.preventDefault();
   schoolAdminInviteResult.textContent = '';
   const payload = Object.fromEntries(new FormData(schoolAdminInviteForm).entries());
-  const response = await fetch('/api/school-admin/invites', {
+  const response = await apiFetch('/api/school-admin/invites', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2786,7 +2805,7 @@ async function loadSchoolScoreTables() {
 async function saveSchoolScoreTableSettings(event) {
   event.preventDefault();
   schoolScoreTableMessage.textContent = '';
-  const response = await fetch('/api/school-admin/score-table-settings', {
+  const response = await apiFetch('/api/school-admin/score-table-settings', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gradeStart: schoolScoreGradeStartSelect.value, gradeEnd: schoolScoreGradeEndSelect.value }),
@@ -2805,7 +2824,7 @@ async function createSchoolScoreTable(event) {
   event.preventDefault();
   schoolScoreTableMessage.textContent = '';
   const payload = Object.fromEntries(new FormData(schoolScoreTableCreateForm).entries());
-  const response = await fetch('/api/school-admin/score-tables', {
+  const response = await apiFetch('/api/school-admin/score-tables', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2838,7 +2857,7 @@ async function importSchoolScoreTables(event) {
 
   schoolScoreTableMessage.textContent = 'מייבא טבלאות מהקובץ...';
   try {
-    const response = await fetch('/api/school-admin/score-tables/import', {
+    const response = await apiFetch('/api/school-admin/score-tables/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
       body: await file.arrayBuffer(),
@@ -3033,7 +3052,7 @@ async function saveActiveSchoolScoreTable() {
   }
   schoolScoreTableSaveButton.textContent = 'שומר...';
   schoolScoreTableSaveButton.disabled = true;
-  const response = await fetch(`/api/school-admin/score-tables/${table.id}`, {
+  const response = await apiFetch(`/api/school-admin/score-tables/${table.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ startingScore: table.startingScore, subjects: table.subjects, rows: table.rows }),
@@ -3055,7 +3074,7 @@ async function deleteActiveSchoolScoreTable() {
   if (!table || !window.confirm(`למחוק את ${schoolScoreGradeLabel(table.grade)} ${schoolScoreGenderLabels[table.genderGroup]}?`)) {
     return;
   }
-  const response = await fetch(`/api/school-admin/score-tables/${table.id}`, { method: 'DELETE' });
+  const response = await apiFetch(`/api/school-admin/score-tables/${table.id}`, { method: 'DELETE' });
   if (!response.ok) {
     schoolScoreTableMessage.textContent = 'לא ניתן למחוק את הטבלה כרגע.';
     return;
@@ -3227,7 +3246,7 @@ async function loadInactiveUsers() {
 
 async function restoreInactiveUser(email) {
   adminRestoreMessage.textContent = '';
-  const response = await fetch('/api/admin/restore-user', {
+  const response = await apiFetch('/api/admin/restore-user', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -3275,7 +3294,7 @@ async function restoreAdminBackupFromFile(file) {
   adminRestoreMessage.textContent = '';
   try {
     const backup = JSON.parse(await file.text());
-    const response = await fetch('/api/admin/backup/restore', {
+    const response = await apiFetch('/api/admin/backup/restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ backup }),
@@ -3356,7 +3375,7 @@ async function confirmAdminStatusChange() {
   }
 
   const { userId, isActive } = pendingAdminStatusChange;
-  const response = await fetch(`/api/admin/users/${userId}/status`, {
+  const response = await apiFetch(`/api/admin/users/${userId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isActive }),
@@ -3427,7 +3446,7 @@ async function submitAdminPasswordReset(event) {
     submitButton.disabled = true;
   }
 
-  const response = await fetch(`/api/admin/users/${pendingAdminPasswordReset.userId}/reset-password`, {
+  const response = await apiFetch(`/api/admin/users/${pendingAdminPasswordReset.userId}/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -3704,6 +3723,18 @@ function preventPasswordCopy(event) {
   event.preventDefault();
 }
 
+function togglePasswordVisibility(button) {
+  const input = button.closest('.password-field')?.querySelector('input');
+  if (!input) {
+    return;
+  }
+
+  const shouldShow = input.type === 'password';
+  input.type = shouldShow ? 'text' : 'password';
+  button.setAttribute('aria-pressed', String(shouldShow));
+  button.setAttribute('aria-label', shouldShow ? 'הסתרת סיסמה' : 'הצגת סיסמה');
+}
+
 function fillProfileForm() {
   if (!authUser || !profileDetailsForm) {
     return;
@@ -3778,7 +3809,7 @@ async function requestAdditionalSchool() {
     return;
   }
 
-  const response = await fetch('/api/teacher/school-requests', {
+  const response = await apiFetch('/api/teacher/school-requests', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ schoolId: profileSchoolRequestSelect.value }),
@@ -3804,7 +3835,7 @@ async function saveProfileDetails(event) {
     profileDetailsMessage.textContent = validationError;
     return;
   }
-  const response = await fetch('/api/auth/profile', {
+  const response = await apiFetch('/api/auth/profile', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -3834,7 +3865,7 @@ async function changeProfilePassword(event) {
     return;
   }
 
-  const response = await fetch('/api/auth/password', {
+  const response = await apiFetch('/api/auth/password', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -3890,7 +3921,7 @@ async function deactivateProfileAccount() {
     profileDeactivateModalMessage.textContent = 'יש להקליד סיסמה בפרופיל לפני האישור.';
     return;
   }
-  const response = await fetch('/api/auth/deactivate', {
+  const response = await apiFetch('/api/auth/deactivate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -3915,7 +3946,7 @@ async function deactivateProfileAccount() {
 }
 
 async function logoutMember() {
-  await fetch('/api/auth/logout', { method: 'POST' });
+  await apiFetch('/api/auth/logout', { method: 'POST' });
   authUser = null;
   teacherClasses = [];
   activeTeacherClassId = null;
@@ -4662,7 +4693,7 @@ async function saveTeacherHistorySnapshot() {
       return;
     }
 
-    const response = await fetch('/api/bulk-score', {
+    const response = await apiFetch('/api/bulk-score', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -4765,7 +4796,7 @@ async function saveTeacherStudentNameEdit() {
     const timeoutId = window.setTimeout(() => controller.abort(), 8000);
     let response;
     try {
-      response = await fetch(`/api/teacher/classes/${activeTeacherClassId}`, {
+      response = await apiFetch(`/api/teacher/classes/${activeTeacherClassId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -5009,7 +5040,7 @@ function handleTeacherClassDrop(event) {
   writeUiPreference(uiPreferenceKeys.classSortField, teacherClassSortField.value);
   isSavingClassOrder = true;
   dragClassSourceId = null;
-  fetch('/api/teacher/classes/reorder', {
+  apiFetch('/api/teacher/classes/reorder', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderedIds: teacherClasses.map((item) => item.id) }),
@@ -5027,7 +5058,7 @@ function handleTeacherClassDragEnd() {
     if (orderedClasses.length === teacherClasses.length) {
       teacherClasses = orderedClasses;
       isSavingClassOrder = true;
-      fetch('/api/teacher/classes/reorder', {
+      apiFetch('/api/teacher/classes/reorder', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds }),
@@ -5052,7 +5083,7 @@ function commitVisibleTeacherClassOrder() {
 
   teacherClasses = orderedClasses;
   teacherClassSortField.value = 'manual';
-  fetch('/api/teacher/classes/reorder', {
+  apiFetch('/api/teacher/classes/reorder', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderedIds }),
@@ -5406,7 +5437,7 @@ async function calculateTeacherScores() {
     return;
   }
 
-  const response = await fetch('/api/bulk-score', {
+  const response = await apiFetch('/api/bulk-score', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -5433,7 +5464,7 @@ async function deleteCurrentTeacherClass() {
     return;
   }
 
-  const response = await fetch(`/api/teacher/classes/${pendingDeleteClassId}`, {
+  const response = await apiFetch(`/api/teacher/classes/${pendingDeleteClassId}`, {
     method: 'DELETE',
   });
 
@@ -5494,6 +5525,13 @@ function renderCurrentView() {
 }
 
 async function init() {
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-password-toggle]');
+    if (button) {
+      togglePasswordVisibility(button);
+    }
+  });
+
   if (await renderSharedHistoryGraph()) {
     return;
   }
@@ -5821,7 +5859,7 @@ async function init() {
       if (!semesterSelect) {
         return;
       }
-      const response = await fetch(`/api/teacher/classes/${activeTeacherClassId}/history/${semesterSelect.dataset.historyId}/semester`, {
+      const response = await apiFetch(`/api/teacher/classes/${activeTeacherClassId}/history/${semesterSelect.dataset.historyId}/semester`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ semester: semesterSelect.value }),
@@ -6050,7 +6088,7 @@ async function init() {
         const name = permanentDeleteButton.dataset.permanentDeleteUserName;
         const confirmed = window.confirm(`מחיקה לצמיתות של ${name}? יש לבצע רק לאחר השבתה ובאישור סופי.`);
         if (confirmed) {
-          fetch(`/api/admin/users/${permanentDeleteButton.dataset.permanentDeleteUserId}/permanent`, { method: 'DELETE' }).then((response) => {
+          apiFetch(`/api/admin/users/${permanentDeleteButton.dataset.permanentDeleteUserId}/permanent`, { method: 'DELETE' }).then((response) => {
             if (response.ok) {
               loadAdminOverview();
             }
@@ -6164,14 +6202,14 @@ async function init() {
         if (!window.confirm('להסיר את המורה מבית הספר? החשבון יישאר פעיל אך לא יהיה מחובר לבית הספר הזה.')) {
           return;
         }
-        const response = await fetch(`/api/school-admin/memberships/${button.dataset.schoolMembershipId}`, { method: 'DELETE' });
+        const response = await apiFetch(`/api/school-admin/memberships/${button.dataset.schoolMembershipId}`, { method: 'DELETE' });
         if (response.ok) {
           await loadSchoolAdminOverview();
         }
         return;
       }
 
-      const response = await fetch(`/api/school-admin/memberships/${button.dataset.schoolMembershipId}`, {
+      const response = await apiFetch(`/api/school-admin/memberships/${button.dataset.schoolMembershipId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: button.dataset.schoolMemberStatus }),
