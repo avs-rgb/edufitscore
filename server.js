@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const ExcelJS = require('exceljs');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const { loadSheetsByGender, scoreMetric } = require('./lib/workbook');
 const { sendMail } = require('./lib/mailer');
 const { matchSchoolScoreTableResult } = require('./public/school-score');
@@ -35,6 +37,15 @@ const {
   adminResetUserPassword,
   createPasswordResetToken,
   resetPasswordWithToken,
+  getAdminTwoFactorState,
+  saveAdminTwoFactorSecret,
+  enableAdminTwoFactor,
+  disableAdminTwoFactor,
+  createTwoFactorChallenge,
+  getTwoFactorChallenge,
+  incrementTwoFactorChallengeAttempts,
+  consumeTwoFactorChallenge,
+  consumeAdminTwoFactorRecoveryCode,
   saveGraphSnapshot,
   getGraphSnapshot,
   logAdminAction,
@@ -84,6 +95,8 @@ const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, l
 const adminRestoreRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
 const adminPermanentDeleteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const adminPasswordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const twoFactorVerifyRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 8 });
+const twoFactorSetupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 6 });
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -347,6 +360,40 @@ function auditRequestDetails(request, extra = {}) {
   };
 }
 
+function requireGlobalAdmin(request, response) {
+  if (request.authUser?.role !== 'admin') {
+    response.status(403).json({ error: 'ADMIN_REQUIRED' });
+    return false;
+  }
+  return true;
+}
+
+function isAdminTwoFactorBypassed() {
+  return String(process.env.DISABLE_ADMIN_2FA || '').toLowerCase() === 'true';
+}
+
+function normalizeTwoFactorCode(value) {
+  return String(value || '').trim().replace(/\s+/g, '').toUpperCase();
+}
+
+function verifyTotpCode(secret, code) {
+  const normalized = normalizeTwoFactorCode(code);
+  return /^\d{6}$/.test(normalized) && speakeasy.totp.verify({ secret, encoding: 'base32', token: normalized, window: 1 });
+}
+
+function generateRecoveryCodes(count = 10) {
+  return Array.from({ length: count }, () => {
+    const raw = crypto.randomBytes(5).toString('hex').toUpperCase();
+    return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+  });
+}
+
+function maskEmail(email) {
+  const [name, domain] = String(email || '').split('@');
+  if (!name || !domain) return '';
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
@@ -454,12 +501,108 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
     return;
   }
 
+  if (user.role === 'admin') {
+    const twoFactor = await getAdminTwoFactorState(user.id);
+    if (twoFactor?.enabled && !isAdminTwoFactorBypassed()) {
+      const challenge = await createTwoFactorChallenge(user.id);
+      response.json({ requiresTwoFactor: true, challengeToken: challenge.token, expiresAt: challenge.expiresAt, email: maskEmail(user.email) });
+      return;
+    }
+  }
+
   const session = await createSession(user.id);
   setAuthCookies(response, session);
   if (user.role === 'admin') {
     await logAdminAction(user.id, user.id, 'admin_login', auditRequestDetails(request, { email: user.email }));
   }
   response.json({ user, csrfToken: session.csrfToken });
+});
+
+app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request, response) => {
+  const { challengeToken, code } = request.body || {};
+  const challenge = await getTwoFactorChallenge(challengeToken);
+
+  if (!challenge || challenge.attemptCount >= 8) {
+    response.status(400).json({ error: 'TWO_FACTOR_CHALLENGE_INVALID' });
+    return;
+  }
+
+  const normalizedCode = normalizeTwoFactorCode(code);
+  const usedRecoveryCode = !/^\d{6}$/.test(normalizedCode) && await consumeAdminTwoFactorRecoveryCode(challenge.userId, normalizedCode);
+  const valid = usedRecoveryCode || verifyTotpCode(challenge.secret, normalizedCode);
+
+  if (!valid) {
+    await incrementTwoFactorChallengeAttempts(challengeToken);
+    await logAdminAction(challenge.userId, challenge.userId, 'admin_2fa_login_failed', auditRequestDetails(request, { reason: 'INVALID_CODE' }));
+    response.status(401).json({ error: 'TWO_FACTOR_INVALID' });
+    return;
+  }
+
+  await consumeTwoFactorChallenge(challengeToken);
+  const session = await createSession(challenge.userId);
+  setAuthCookies(response, session);
+  const user = await findUserBySessionToken(session.token);
+  await logAdminAction(challenge.userId, challenge.userId, usedRecoveryCode ? 'admin_2fa_recovery_code_used' : 'admin_2fa_login_success', auditRequestDetails(request));
+  await logAdminAction(challenge.userId, challenge.userId, 'admin_login', auditRequestDetails(request, { email: user.email, twoFactor: true }));
+  response.json({ user, csrfToken: session.csrfToken });
+});
+
+app.get('/api/auth/2fa/status', requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+  const state = await getAdminTwoFactorState(request.authUser.id);
+  response.json({ enabled: Boolean(state?.enabled), enabledAt: state?.enabledAt || '', recoveryCodeCount: state?.recoveryCodeCount || 0 });
+});
+
+app.post('/api/auth/2fa/setup/start', twoFactorSetupRateLimit, requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+  if (!await ensureCurrentAdminPassword(request, response, 'admin_2fa_setup_started', request.authUser.id)) return;
+
+  const secret = speakeasy.generateSecret({ length: 20, name: `EduFitScore:${request.authUser.email}`, issuer: 'EduFitScore' });
+  await saveAdminTwoFactorSecret(request.authUser.id, secret.base32);
+  const label = `EduFitScore:${request.authUser.email}`;
+  const otpauthUrl = secret.otpauth_url;
+  const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, { margin: 1, width: 220 });
+  await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_setup_started', auditRequestDetails(request));
+  response.json({ label, secret: secret.base32, qrCodeDataUrl });
+});
+
+app.post('/api/auth/2fa/setup/verify', twoFactorSetupRateLimit, requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+  const state = await getAdminTwoFactorState(request.authUser.id);
+
+  if (!state?.secret || !verifyTotpCode(state.secret, request.body?.code)) {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_setup_failed', auditRequestDetails(request, { reason: 'INVALID_CODE' }));
+    response.status(400).json({ error: 'TWO_FACTOR_INVALID' });
+    return;
+  }
+
+  const recoveryCodes = generateRecoveryCodes();
+  await enableAdminTwoFactor(request.authUser.id, recoveryCodes);
+  await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_enabled', auditRequestDetails(request));
+  response.json({ enabled: true, recoveryCodes });
+});
+
+app.post('/api/auth/2fa/disable', twoFactorSetupRateLimit, requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+  if (!await ensureCurrentAdminPassword(request, response, 'admin_2fa_disabled', request.authUser.id)) return;
+
+  const state = await getAdminTwoFactorState(request.authUser.id);
+  if (!state?.enabled) {
+    response.json({ enabled: false });
+    return;
+  }
+
+  const normalizedCode = normalizeTwoFactorCode(request.body?.code);
+  const usedRecoveryCode = !/^\d{6}$/.test(normalizedCode) && await consumeAdminTwoFactorRecoveryCode(request.authUser.id, normalizedCode);
+  if (!usedRecoveryCode && !verifyTotpCode(state.secret, normalizedCode)) {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_disable_failed', auditRequestDetails(request, { reason: 'INVALID_CODE' }));
+    response.status(400).json({ error: 'TWO_FACTOR_INVALID' });
+    return;
+  }
+
+  await disableAdminTwoFactor(request.authUser.id);
+  await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_disabled', auditRequestDetails(request));
+  response.json({ enabled: false });
 });
 
 app.post('/api/auth/signup', signupRateLimit, async (request, response) => {

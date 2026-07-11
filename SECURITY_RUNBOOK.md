@@ -57,3 +57,11 @@
 - Backup restore requires current admin password, the `delete` confirmation phrase, CSRF, rate limiting, and the production restore gate.
 - Permanent user delete requires current admin password, the `delete` confirmation phrase, CSRF, and rate limiting.
 - Admin password reset requires current admin password, CSRF, and rate limiting.
+
+## Global Admin 2FA
+
+- 2FA is optional and applies only to global admins (`role = admin`). School admins and teachers are not prompted for 2FA.
+- Enable 2FA only after scanning the QR/manual key and successfully verifying a current authenticator code.
+- Save recovery codes immediately after setup; each code works once and is stored only as a hash.
+- If all global admins are locked out, temporarily set `DISABLE_ADMIN_2FA=true` in Render, log in with password, fix 2FA/recovery codes, then remove the variable and redeploy immediately.
+- Review audit log entries for `admin_2fa_enabled`, `admin_2fa_disabled`, failed 2FA attempts, and recovery-code usage.

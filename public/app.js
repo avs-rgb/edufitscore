@@ -35,6 +35,11 @@ const contactCloseButton = document.querySelector('#contact-close-button');
 const memberLoginView = document.querySelector('#member-login-view');
 const memberLoginForm = document.querySelector('#member-login-form');
 const memberLoginError = document.querySelector('#member-login-error');
+const memberTwoFactorView = document.querySelector('#member-2fa-view');
+const memberTwoFactorForm = document.querySelector('#member-2fa-form');
+const memberTwoFactorSubtitle = document.querySelector('#member-2fa-subtitle');
+const memberTwoFactorCancelButton = document.querySelector('#member-2fa-cancel');
+const memberTwoFactorError = document.querySelector('#member-2fa-error');
 const forgotPasswordButton = document.querySelector('#forgot-password-button');
 const forgotPasswordView = document.querySelector('#forgot-password-view');
 const forgotPasswordForm = document.querySelector('#forgot-password-form');
@@ -72,6 +77,15 @@ const adminAuditFilter = document.querySelector('#admin-audit-filter');
 const adminBackupButton = document.querySelector('#admin-backup-button');
 const adminBackupImport = document.querySelector('#admin-backup-import');
 const adminDiagnostics = document.querySelector('#admin-diagnostics');
+const adminTwoFactorStatus = document.querySelector('#admin-2fa-status');
+const adminTwoFactorStartForm = document.querySelector('#admin-2fa-start-form');
+const adminTwoFactorSetup = document.querySelector('#admin-2fa-setup');
+const adminTwoFactorQr = document.querySelector('#admin-2fa-qr');
+const adminTwoFactorSecret = document.querySelector('#admin-2fa-secret');
+const adminTwoFactorVerifyForm = document.querySelector('#admin-2fa-verify-form');
+const adminTwoFactorRecovery = document.querySelector('#admin-2fa-recovery');
+const adminTwoFactorDisableForm = document.querySelector('#admin-2fa-disable-form');
+const adminTwoFactorMessage = document.querySelector('#admin-2fa-message');
 const adminStatusModal = document.querySelector('#admin-status-modal');
 const adminStatusCloseButton = document.querySelector('#admin-status-close');
 const adminStatusCancelButton = document.querySelector('#admin-status-cancel');
@@ -320,6 +334,7 @@ let visibleHistoryGraphStudents = new Set();
 let historyGraphSelectionTouched = false;
 let adminAuditEntries = [];
 let adminUsersSort = { key: '', direction: 'asc' };
+let pendingTwoFactorChallengeToken = '';
 let teacherEditRosterSnapshot = null;
 let schoolScoreTableState = { school: null, settings: { gradeStart: 1, gradeEnd: 6 }, tables: [] };
 let activeSchoolScoreTableId = null;
@@ -446,6 +461,7 @@ const staticViews = {
   accessibility: accessibilityView,
   contact: contactView,
   login: memberLoginView,
+  twoFactor: memberTwoFactorView,
   forgotPassword: forgotPasswordView,
   resetPassword: resetPasswordView,
   signup: memberSignupView,
@@ -3169,6 +3185,7 @@ async function loadAdminOverview() {
   const data = await response.json();
   adminSummary.textContent = `${data.user.fullName} (${data.user.email}) | ${data.summary}`;
   await loadAdminDiagnostics();
+  await loadAdminTwoFactorStatus();
   await loadAdminUsers();
   await loadInactiveUsers();
   await loadAdminAuditLog();
@@ -3190,6 +3207,98 @@ async function loadAdminDiagnostics() {
     <div class="teacher-summary-card">גיבוי אחרון: ${diagnostics.latestBackup ? new Date(diagnostics.latestBackup).toLocaleString('he-IL') : '-'}</div>
     <div class="teacher-summary-card">שחזור אחרון: ${diagnostics.latestRestore ? new Date(diagnostics.latestRestore).toLocaleString('he-IL') : '-'}</div>
   `;
+}
+
+async function loadAdminTwoFactorStatus() {
+  const response = await fetch('/api/auth/2fa/status');
+  if (!response.ok) {
+    adminTwoFactorStatus.textContent = 'לא ניתן לטעון מצב אימות דו-שלבי.';
+    return;
+  }
+  const data = await response.json();
+  renderAdminTwoFactorStatus(data);
+}
+
+function renderAdminTwoFactorStatus(data) {
+  const enabled = Boolean(data.enabled);
+  adminTwoFactorStatus.innerHTML = enabled
+    ? `<p><strong>אימות דו-שלבי פעיל.</strong> קודי שחזור זמינים: ${Number(data.recoveryCodeCount || 0)}.</p>`
+    : '<p><strong>אימות דו-שלבי כבוי.</strong> מומלץ להפעיל עבור חשבון מנהל גלובלי.</p>';
+  adminTwoFactorStartForm.classList.toggle('is-hidden', enabled);
+  adminTwoFactorDisableForm.classList.toggle('is-hidden', !enabled);
+  adminTwoFactorSetup.classList.add('is-hidden');
+  if (!enabled) {
+    adminTwoFactorRecovery.classList.add('is-hidden');
+    adminTwoFactorRecovery.innerHTML = '';
+  }
+}
+
+async function startAdminTwoFactorSetup(event) {
+  event.preventDefault();
+  adminTwoFactorMessage.textContent = '';
+  adminTwoFactorRecovery.classList.add('is-hidden');
+  const payload = Object.fromEntries(new FormData(adminTwoFactorStartForm).entries());
+  const response = await apiFetch('/api/auth/2fa/setup/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    adminTwoFactorMessage.textContent = response.status === 403 ? 'סיסמת המנהל שגויה.' : 'לא ניתן להתחיל הפעלת אימות דו-שלבי.';
+    return;
+  }
+  const data = await response.json();
+  adminTwoFactorQr.src = data.qrCodeDataUrl;
+  adminTwoFactorSecret.textContent = data.secret;
+  adminTwoFactorSetup.classList.remove('is-hidden');
+  adminTwoFactorStartForm.reset();
+  adminTwoFactorMessage.textContent = 'סרקו את הקוד ואז הזינו קוד חד-פעמי לאישור.';
+}
+
+async function verifyAdminTwoFactorSetup(event) {
+  event.preventDefault();
+  adminTwoFactorMessage.textContent = '';
+  const payload = Object.fromEntries(new FormData(adminTwoFactorVerifyForm).entries());
+  const response = await apiFetch('/api/auth/2fa/setup/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    adminTwoFactorMessage.textContent = 'קוד האימות שגוי. ודאו שהשעה במכשיר מעודכנת ונסו שוב.';
+    return;
+  }
+  const data = await response.json();
+  adminTwoFactorSetup.classList.add('is-hidden');
+  adminTwoFactorVerifyForm.reset();
+  adminTwoFactorRecovery.classList.remove('is-hidden');
+  adminTwoFactorRecovery.innerHTML = `
+    <p><strong>שמרו את קודי השחזור עכשיו.</strong> כל קוד עובד פעם אחת בלבד ולא יוצג שוב.</p>
+    <div class="admin-2fa-code-grid">${data.recoveryCodes.map((code) => `<code>${escapeHtml(code)}</code>`).join('')}</div>
+  `;
+  adminTwoFactorMessage.textContent = 'אימות דו-שלבי הופעל.';
+  renderAdminTwoFactorStatus({ enabled: true, recoveryCodeCount: data.recoveryCodes.length });
+  adminTwoFactorRecovery.classList.remove('is-hidden');
+  await loadAdminAuditLog();
+}
+
+async function disableAdminTwoFactor(event) {
+  event.preventDefault();
+  adminTwoFactorMessage.textContent = '';
+  const payload = Object.fromEntries(new FormData(adminTwoFactorDisableForm).entries());
+  const response = await apiFetch('/api/auth/2fa/disable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    adminTwoFactorMessage.textContent = response.status === 403 ? 'סיסמת המנהל שגויה.' : 'קוד האימות שגוי או שלא ניתן לכבות כרגע.';
+    return;
+  }
+  adminTwoFactorDisableForm.reset();
+  adminTwoFactorMessage.textContent = 'אימות דו-שלבי כובה.';
+  await loadAdminTwoFactorStatus();
+  await loadAdminAuditLog();
 }
 
 async function loadAdminUsers() {
@@ -3279,6 +3388,15 @@ function renderAdminAuditLogFromFilter() {
     export_backup: 'הורדת גיבוי',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
+    admin_2fa_setup_started: 'התחלת אימות דו-שלבי',
+    admin_2fa_setup_started_failed: 'התחלת אימות נכשלה',
+    admin_2fa_setup_failed: 'הפעלת אימות נכשלה',
+    admin_2fa_enabled: 'אימות דו-שלבי הופעל',
+    admin_2fa_disabled: 'אימות דו-שלבי כובה',
+    admin_2fa_disable_failed: 'כיבוי אימות נכשל',
+    admin_2fa_login_success: 'כניסה עם אימות דו-שלבי',
+    admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
+    admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
     school_score_table_create: 'יצירת טבלת ציונים',
     school_score_table_create_failed: 'יצירת טבלה נכשלה',
     school_score_table_import: 'ייבוא טבלאות ציונים',
@@ -3287,7 +3405,9 @@ function renderAdminAuditLogFromFilter() {
     school_score_table_delete_failed: 'מחיקת טבלה נכשלה',
   };
   const filterValue = adminAuditFilter?.value || 'all';
-  const entries = filterValue === 'all' ? adminAuditEntries : adminAuditEntries.filter((entry) => entry.action === filterValue);
+  const entries = filterValue === 'all'
+    ? adminAuditEntries
+    : adminAuditEntries.filter((entry) => filterValue === 'admin_2fa' ? entry.action.startsWith('admin_2fa_') : entry.action === filterValue);
   adminAuditLog.innerHTML = entries.length ? `
     <table class="admin-audit-table">
       <thead><tr><th>תאריך</th><th>פעולה</th><th>מנהל</th><th>משתמש</th><th>פרטים</th></tr></thead>
@@ -3730,10 +3850,25 @@ async function handleMemberLogin(event) {
   }
 
   const data = await response.json();
+  if (data.requiresTwoFactor) {
+    pendingTwoFactorChallengeToken = data.challengeToken || '';
+    memberTwoFactorForm.reset();
+    memberTwoFactorError.textContent = '';
+    memberTwoFactorSubtitle.textContent = data.email
+      ? `הקלידו קוד מאפליקציית אימות עבור ${data.email}, או קוד שחזור.`
+      : 'הקלידו קוד מאפליקציית אימות או קוד שחזור.';
+    applyRoute('twoFactor');
+    return;
+  }
+
+  await finishAuthenticatedLogin(data.user);
+}
+
+async function finishAuthenticatedLogin(user) {
   clearTeacherResultState();
   teacherClasses = [];
   activeTeacherClassId = null;
-  authUser = data.user;
+  authUser = user;
   syncMemberControls();
   syncTeacherClassSchoolField();
   await refreshTeacherClasses();
@@ -3742,6 +3877,34 @@ async function handleMemberLogin(event) {
     return;
   }
   applyRoute(authUser.role === 'admin' ? 'admin' : 'member');
+}
+
+async function handleMemberTwoFactor(event) {
+  event.preventDefault();
+  memberTwoFactorError.textContent = '';
+
+  const payload = Object.fromEntries(new FormData(memberTwoFactorForm).entries());
+  const response = await fetch('/api/auth/2fa/verify-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challengeToken: pendingTwoFactorChallengeToken, code: payload.code }),
+  });
+
+  if (!response.ok) {
+    memberTwoFactorError.textContent = response.status === 429 ? 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.' : 'קוד האימות שגוי או שפג תוקף הכניסה.';
+    return;
+  }
+
+  const data = await response.json();
+  pendingTwoFactorChallengeToken = '';
+  await finishAuthenticatedLogin(data.user);
+}
+
+function cancelMemberTwoFactor() {
+  pendingTwoFactorChallengeToken = '';
+  memberTwoFactorForm.reset();
+  memberTwoFactorError.textContent = '';
+  applyRoute('login');
 }
 
 async function handleMemberSignup(event) {
@@ -6182,6 +6345,8 @@ async function init() {
     applyRoute('member');
   });
   memberLoginForm.addEventListener('submit', handleMemberLogin);
+  if (memberTwoFactorForm) { memberTwoFactorForm.addEventListener('submit', handleMemberTwoFactor); }
+  if (memberTwoFactorCancelButton) { memberTwoFactorCancelButton.addEventListener('click', cancelMemberTwoFactor); }
   if (memberSignupButton) { memberSignupButton.addEventListener('click', () => applyRoute('signup')); }
   if (memberSignupBackButton) { memberSignupBackButton.addEventListener('click', () => applyRoute('member')); }
   if (forgotPasswordButton) { forgotPasswordButton.addEventListener('click', () => applyRoute('forgotPassword')); }
@@ -6254,6 +6419,9 @@ async function init() {
   memberLogoutButton.addEventListener('click', logoutMember);
   adminLogoutButton.addEventListener('click', logoutMember);
   if (adminRestoreUserForm) { adminRestoreUserForm.addEventListener('submit', handleAdminRestoreUser); }
+  if (adminTwoFactorStartForm) { adminTwoFactorStartForm.addEventListener('submit', startAdminTwoFactorSetup); }
+  if (adminTwoFactorVerifyForm) { adminTwoFactorVerifyForm.addEventListener('submit', verifyAdminTwoFactorSetup); }
+  if (adminTwoFactorDisableForm) { adminTwoFactorDisableForm.addEventListener('submit', disableAdminTwoFactor); }
   if (adminBackupButton) { adminBackupButton.addEventListener('click', () => withBrieflyDisabled(adminBackupButton, downloadAdminBackup)); }
   if (adminBackupImport) { adminBackupImport.addEventListener('change', () => restoreAdminBackupFromFile(adminBackupImport.files?.[0])); }
   if (adminAuditFilter) { adminAuditFilter.addEventListener('change', renderAdminAuditLogFromFilter); }

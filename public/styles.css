@@ -2552,6 +2552,58 @@ p {
   flex: 1 1 150px;
 }
 
+.admin-security-panel {
+  border-color: rgba(31, 111, 235, 0.25);
+}
+
+.admin-security-status p,
+.admin-2fa-setup p,
+.admin-2fa-recovery p {
+  margin: 0 0 0.75rem;
+}
+
+.admin-2fa-setup,
+.admin-2fa-recovery {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(36, 55, 99, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-2fa-qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+  margin: 0.5rem auto 1rem;
+  border-radius: 12px;
+}
+
+.admin-2fa-secret {
+  direction: ltr;
+  text-align: center;
+  word-break: break-all;
+  margin-bottom: 1rem;
+}
+
+.admin-2fa-code-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.5rem;
+  direction: ltr;
+}
+
+.admin-2fa-code-grid code {
+  display: block;
+  padding: 0.5rem;
+  border-radius: 10px;
+  background: #172033;
+  color: #fff;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .teacher-tools {
   display: grid;
   gap: 10px;

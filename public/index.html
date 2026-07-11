@@ -78,6 +78,22 @@
         </div>
       </section>
 
+      <section id="member-2fa-view" class="home-view is-hidden">
+        <div class="home-card panel member-login-card">
+          <h2>אימות דו-שלבי</h2>
+          <p id="member-2fa-subtitle" class="home-subtitle">הקלידו קוד מאפליקציית אימות או קוד שחזור.</p>
+          <form id="member-2fa-form" class="member-login-form">
+            <label class="field-label" for="member-2fa-code">קוד אימות</label>
+            <input id="member-2fa-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required />
+            <div class="teacher-entry-actions signup-actions">
+              <button type="submit" class="home-action-button login-submit-button">אימות וכניסה</button>
+              <button id="member-2fa-cancel" type="button" class="back-home-button">חזרה לכניסה</button>
+            </div>
+          </form>
+          <div id="member-2fa-error" class="login-error" role="alert" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section id="forgot-password-view" class="home-view is-hidden">
         <div class="home-card panel member-login-card">
           <h2>איפוס סיסמה</h2>
@@ -294,6 +310,44 @@
               <h3>אבחון מערכת</h3>
               <div id="admin-diagnostics" class="admin-diagnostics"></div>
             </section>
+            <section class="admin-users-panel admin-security-panel">
+              <h3>אבטחת מנהל</h3>
+              <div id="admin-2fa-status" class="admin-security-status"></div>
+              <form id="admin-2fa-start-form" class="member-login-form admin-restore-compact-form">
+                <label class="field-label" for="admin-2fa-start-password">סיסמת מנהל נוכחית</label>
+                <div class="password-field">
+                  <input id="admin-2fa-start-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+                  <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                    <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                  </button>
+                </div>
+                <button type="submit" class="teacher-panel-button">הפעלת אימות דו-שלבי</button>
+              </form>
+              <div id="admin-2fa-setup" class="admin-2fa-setup is-hidden">
+                <p>סרקו את הקוד באפליקציית אימות, או הזינו ידנית את המפתח.</p>
+                <img id="admin-2fa-qr" class="admin-2fa-qr" alt="קוד QR לאימות דו-שלבי" />
+                <div class="admin-2fa-secret"><span>מפתח ידני:</span> <code id="admin-2fa-secret"></code></div>
+                <form id="admin-2fa-verify-form" class="member-login-form admin-restore-compact-form">
+                  <label class="field-label" for="admin-2fa-verify-code">קוד מהאפליקציה</label>
+                  <input id="admin-2fa-verify-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required />
+                  <button type="submit" class="teacher-panel-button">אישור והצגת קודי שחזור</button>
+                </form>
+              </div>
+              <div id="admin-2fa-recovery" class="admin-2fa-recovery is-hidden"></div>
+              <form id="admin-2fa-disable-form" class="member-login-form admin-restore-compact-form is-hidden">
+                <label class="field-label" for="admin-2fa-disable-password">סיסמת מנהל נוכחית</label>
+                <div class="password-field">
+                  <input id="admin-2fa-disable-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+                  <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                    <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+                  </button>
+                </div>
+                <label class="field-label" for="admin-2fa-disable-code">קוד אימות או קוד שחזור</label>
+                <input id="admin-2fa-disable-code" name="code" type="text" autocomplete="one-time-code" required />
+                <button type="submit" class="danger-button">כיבוי אימות דו-שלבי</button>
+              </form>
+              <div id="admin-2fa-message" class="login-error" role="status" aria-live="polite"></div>
+            </section>
             <section class="admin-users-panel">
               <div class="admin-panel-title-row">
                 <h3>כל הפרופילים</h3>
@@ -328,6 +382,7 @@
                   <option value="permanent_delete_user">מחיקת משתמש</option>
                   <option value="export_backup">הורדת גיבוי</option>
                   <option value="restore_backup">ייבוא גיבוי</option>
+                  <option value="admin_2fa">אימות דו-שלבי</option>
                 </select>
               </div>
               <div id="admin-audit-log" class="admin-audit-log"></div>
