@@ -1968,6 +1968,10 @@ p {
   margin: 0;
 }
 
+#teacher-new-class-view .teacher-title-with-help h2 {
+  margin-bottom: 0;
+}
+
 .inline-help-anchor {
   position: relative;
   display: inline-flex;
@@ -2526,6 +2530,26 @@ p {
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.teacher-roster-import-actions {
+  align-items: stretch;
+  align-self: end;
+  margin: 0;
+}
+
+.teacher-roster-import-actions a,
+.teacher-roster-import-actions label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  color: #ffffff;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  flex: 1 1 150px;
 }
 
 .teacher-tools {

@@ -10,6 +10,7 @@ const { matchSchoolScoreTableResult } = require('./public/school-score');
 const {
   verifyUser,
   createUser,
+  verifyUserPassword,
   updateUserProfile,
   changeUserPassword,
   deactivateUser,
@@ -78,11 +79,20 @@ const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 }
 const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
 const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
+const teacherClassImportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
+const adminRestoreRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const adminPermanentDeleteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const adminPasswordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()');
+  response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  if (process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://')) {
+    response.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
   next();
 });
 app.use((request, response, next) => {
@@ -185,6 +195,31 @@ async function parseImportedScoreTables(buffer) {
 
     return { sheetName: worksheet.name, grade, genderGroup, startingScore, subjects, rows };
   }).filter((table) => table.grade || table.genderGroup || table.subjects.length || table.rows.length);
+}
+
+async function parseImportedTeacherClasses(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  return workbook.worksheets.map((worksheet) => {
+    const roster = [];
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const firstName = importedCellValue(row.getCell(1)).trim();
+      const lastName = importedCellValue(row.getCell(2)).trim();
+      const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+      if (fullName) {
+        roster.push({ id: `student-${roster.length + 1}`, name: fullName });
+      }
+    });
+
+    return {
+      sheetName: worksheet.name,
+      name: String(worksheet.name || '').trim(),
+      studentCount: roster.length,
+      roster,
+    };
+  }).filter((teacherClass) => teacherClass.name || teacherClass.roster.length);
 }
 
 function sessionCookieOptions(expiresAt) {
@@ -302,6 +337,37 @@ async function requireCsrf(request, response, next) {
   next();
 }
 
+function auditRequestDetails(request, extra = {}) {
+  return {
+    ip: request.ip || '',
+    userAgent: request.get('user-agent') || '',
+    method: request.method,
+    path: request.originalUrl || request.path,
+    ...extra,
+  };
+}
+
+async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
+  const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
+  if (valid) {
+    return true;
+  }
+
+  await logAdminAction(request.authUser.id, targetUserId, `${action}_failed`, auditRequestDetails(request, { reason: 'INVALID_ADMIN_PASSWORD' }));
+  response.status(403).json({ error: 'INVALID_ADMIN_PASSWORD' });
+  return false;
+}
+
+async function ensureDeleteConfirmation(request, response, action, targetUserId = null) {
+  if (String(request.body?.confirmation || '').trim() === 'delete') {
+    return true;
+  }
+
+  await logAdminAction(request.authUser.id, targetUserId, `${action}_failed`, auditRequestDetails(request, { reason: 'INVALID_CONFIRMATION' }));
+  response.status(400).json({ error: 'INVALID_CONFIRMATION' });
+  return false;
+}
+
 app.use(attachUser);
 app.use(requireCsrf);
 
@@ -390,6 +456,9 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
 
   const session = await createSession(user.id);
   setAuthCookies(response, session);
+  if (user.role === 'admin') {
+    await logAdminAction(user.id, user.id, 'admin_login', auditRequestDetails(request, { email: user.email }));
+  }
   response.json({ user, csrfToken: session.csrfToken });
 });
 
@@ -521,6 +590,9 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
 
   try {
     await changeUserPassword(request.authUser.id, oldPassword, newPassword);
+    if (request.authUser.role === 'admin') {
+      await logAdminAction(request.authUser.id, request.authUser.id, 'password_change', auditRequestDetails(request));
+    }
     response.json({ ok: true });
   } catch (error) {
     if (error.message === 'INVALID_PASSWORD') {
@@ -535,7 +607,10 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
 app.post('/api/auth/deactivate', requireAuth, async (request, response) => {
   try {
     await deactivateUser(request.authUser.id, request.body?.password);
-    response.clearCookie('edufitscore_session', { path: '/' });
+    if (request.authUser.role === 'admin') {
+      await logAdminAction(request.authUser.id, request.authUser.id, 'account_deactivate', auditRequestDetails(request));
+    }
+    clearAuthCookies(response);
     response.json({ ok: true });
   } catch (error) {
     if (error.message === 'INVALID_PASSWORD') {
@@ -594,8 +669,11 @@ app.patch('/api/school-admin/score-table-settings', requireSchoolAdmin, async (r
 
 app.post('/api/school-admin/score-tables', requireSchoolAdmin, async (request, response) => {
   try {
-    response.status(201).json({ table: await createSchoolScoreTable(request.authUser.id, request.body || {}) });
+    const table = await createSchoolScoreTable(request.authUser.id, request.body || {});
+    await logAdminAction(request.authUser.id, null, 'school_score_table_create', auditRequestDetails(request, { tableId: table.id, grade: table.grade, genderGroup: table.genderGroup }));
+    response.status(201).json({ table });
   } catch (error) {
+    await logAdminAction(request.authUser.id, null, 'school_score_table_create_failed', auditRequestDetails(request, { reason: error.message || 'SCORE_TABLE_CREATE_FAILED' }));
     response.status(400).json({ error: error.message || 'SCORE_TABLE_CREATE_FAILED' });
   }
 });
@@ -636,8 +714,14 @@ app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchool
       }
     }
 
+    await logAdminAction(request.authUser.id, null, created.length ? 'school_score_table_import' : 'school_score_table_import_failed', auditRequestDetails(request, {
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      skippedErrors: skipped.map((item) => item.error).filter(Boolean).slice(0, 20),
+    }));
     response.status(created.length ? 201 : 400).json({ created, skipped });
   } catch (error) {
+    await logAdminAction(request.authUser.id, null, 'school_score_table_import_failed', auditRequestDetails(request, { reason: error.message || 'IMPORT_FAILED' }));
     response.status(400).json({ error: error.message || 'IMPORT_FAILED' });
   }
   });
@@ -663,8 +747,10 @@ app.delete('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async 
       response.status(404).json({ error: 'SCORE_TABLE_NOT_FOUND' });
       return;
     }
+    await logAdminAction(request.authUser.id, null, 'school_score_table_delete', auditRequestDetails(request, { tableId: Number(request.params.tableId) }));
     response.json({ ok: true });
   } catch (error) {
+    await logAdminAction(request.authUser.id, null, 'school_score_table_delete_failed', auditRequestDetails(request, { tableId: Number(request.params.tableId), reason: error.message || 'SCORE_TABLE_DELETE_FAILED' }));
     response.status(400).json({ error: error.message || 'SCORE_TABLE_DELETE_FAILED' });
   }
 });
@@ -741,17 +827,28 @@ app.get('/api/admin/backup', requireAuth, async (request, response) => {
   response.json(await exportBackupData());
 });
 
-app.post('/api/admin/backup/restore', requireAuth, async (request, response) => {
+app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
+    await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: 'RESTORE_DISABLED' }));
+    response.status(403).json({ error: 'RESTORE_DISABLED' });
+    return;
+  }
+
+  if (!await ensureCurrentAdminPassword(request, response, 'restore_backup')) return;
+  if (!await ensureDeleteConfirmation(request, response, 'restore_backup')) return;
+
   try {
     const summary = await restoreBackupData(request.body?.backup, request.authUser.id);
+    await logAdminAction(request.authUser.id, null, 'restore_backup', auditRequestDetails(request, { summary }));
     response.json({ ok: true, summary });
   } catch (error) {
     console.error('Backup restore failed:', error);
+    await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: error.message || 'INVALID_BACKUP' }));
     response.status(400).json({ error: 'INVALID_BACKUP', details: error.message });
   }
 });
@@ -813,22 +910,33 @@ app.patch('/api/admin/users/:userId/status', requireAuth, async (request, respon
   }
 });
 
-app.delete('/api/admin/users/:userId/permanent', requireAuth, async (request, response) => {
+app.delete('/api/admin/users/:userId/permanent', adminPermanentDeleteRateLimit, requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
+  const userId = Number(request.params.userId);
+
+  if (!Number.isInteger(userId) || userId < 1) {
+    response.status(400).json({ error: 'INVALID_USER_ID' });
+    return;
+  }
+
+  if (!await ensureCurrentAdminPassword(request, response, 'permanent_delete_user', userId)) return;
+  if (!await ensureDeleteConfirmation(request, response, 'permanent_delete_user', userId)) return;
+
   try {
-    await permanentlyDeleteUser(Number(request.params.userId));
-    await logAdminAction(request.authUser.id, Number(request.params.userId), 'permanent_delete_user');
+    await permanentlyDeleteUser(userId);
+    await logAdminAction(request.authUser.id, userId, 'permanent_delete_user', auditRequestDetails(request));
     response.json({ ok: true });
   } catch (error) {
+    await logAdminAction(request.authUser.id, userId, 'permanent_delete_user_failed', auditRequestDetails(request, { reason: error.message || 'DELETE_FAILED' }));
     response.status(error.message === 'USER_ACTIVE' ? 400 : 404).json({ error: error.message });
   }
 });
 
-app.post('/api/admin/users/:userId/reset-password', requireAuth, async (request, response) => {
+app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit, requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
@@ -847,6 +955,8 @@ app.post('/api/admin/users/:userId/reset-password', requireAuth, async (request,
     return;
   }
 
+  if (!await ensureCurrentAdminPassword(request, response, 'reset_password', userId)) return;
+
   if (!newPassword || newPassword !== newPasswordRepeat) {
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
     return;
@@ -854,9 +964,10 @@ app.post('/api/admin/users/:userId/reset-password', requireAuth, async (request,
 
   try {
     const user = await adminResetUserPassword(userId, newPassword, request.cookies?.edufitscore_session);
-    await logAdminAction(request.authUser.id, userId, 'reset_password', { email: user.email });
+    await logAdminAction(request.authUser.id, userId, 'reset_password', auditRequestDetails(request, { email: user.email, generatedTemporary: Boolean(generateTemporary) }));
     response.json({ user, temporaryPassword: generateTemporary ? newPassword : '' });
   } catch (error) {
+    await logAdminAction(request.authUser.id, userId, 'reset_password_failed', auditRequestDetails(request, { reason: error.message || 'PASSWORD_RESET_FAILED' }));
     if (error.message === 'USER_NOT_FOUND') {
       response.status(404).json({ error: 'USER_NOT_FOUND' });
       return;
@@ -942,6 +1053,66 @@ app.post('/api/teacher/classes', requireTeacherOrAdmin, async (request, response
 
     response.status(500).json({ error: 'Unable to create class' });
   }
+});
+
+app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeacherOrAdmin, (request, response) => {
+  const chunks = [];
+  let size = 0;
+  request.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > 5 * 1024 * 1024) {
+      request.destroy(new Error('IMPORT_FILE_TOO_LARGE'));
+      return;
+    }
+    chunks.push(chunk);
+  });
+  request.on('error', () => response.status(400).json({ error: 'IMPORT_READ_FAILED' }));
+  request.on('end', async () => {
+    try {
+      const fileBuffer = Buffer.concat(chunks);
+      if (!fileBuffer.length) {
+        response.status(400).json({ error: 'IMPORT_FILE_REQUIRED' });
+        return;
+      }
+
+      const grade = String(request.query.grade || '').trim();
+      const gender = String(request.query.gender || '').trim();
+      const schoolId = request.query.schoolId ? Number(request.query.schoolId) : null;
+      const parsedClasses = await parseImportedTeacherClasses(fileBuffer);
+      const created = [];
+      const skipped = [];
+
+      for (const teacherClass of parsedClasses) {
+        try {
+          if (!teacherClass.name || !teacherClass.roster.length) {
+            skipped.push({ sheetName: teacherClass.sheetName, error: 'INVALID_SHEET_STRUCTURE' });
+            continue;
+          }
+          created.push(await createTeacherClass(request.authUser.id, {
+            name: teacherClass.name,
+            grade,
+            gender,
+            schoolId,
+            studentCount: teacherClass.studentCount,
+            roster: teacherClass.roster,
+            values: {},
+          }));
+        } catch (error) {
+          skipped.push({ sheetName: teacherClass.sheetName, error: error.message || 'IMPORT_CLASS_FAILED' });
+        }
+      }
+
+      await logAdminAction(request.authUser.id, null, created.length ? 'teacher_class_import' : 'teacher_class_import_failed', auditRequestDetails(request, {
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        skippedErrors: skipped.map((item) => item.error).filter(Boolean).slice(0, 20),
+      }));
+      response.status(created.length ? 201 : 400).json({ created, skipped });
+    } catch (error) {
+      await logAdminAction(request.authUser.id, null, 'teacher_class_import_failed', auditRequestDetails(request, { reason: error.message || 'IMPORT_FAILED' }));
+      response.status(400).json({ error: error.message || 'IMPORT_FAILED' });
+    }
+  });
 });
 
 app.put('/api/teacher/classes/reorder', requireTeacherOrAdmin, async (request, response) => {

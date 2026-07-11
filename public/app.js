@@ -85,6 +85,17 @@ const adminPasswordMessage = document.querySelector('#admin-password-message');
 const adminPasswordError = document.querySelector('#admin-password-error');
 const adminGeneratePasswordButton = document.querySelector('#admin-generate-password');
 const adminTemporaryPassword = document.querySelector('#admin-temporary-password');
+const adminBackupConfirmModal = document.querySelector('#admin-backup-confirm-modal');
+const adminBackupConfirmCloseButton = document.querySelector('#admin-backup-confirm-close');
+const adminBackupConfirmCancelButton = document.querySelector('#admin-backup-confirm-cancel');
+const adminBackupConfirmForm = document.querySelector('#admin-backup-confirm-form');
+const adminBackupConfirmError = document.querySelector('#admin-backup-confirm-error');
+const adminPermanentDeleteModal = document.querySelector('#admin-permanent-delete-modal');
+const adminPermanentDeleteCloseButton = document.querySelector('#admin-permanent-delete-close');
+const adminPermanentDeleteCancelButton = document.querySelector('#admin-permanent-delete-cancel');
+const adminPermanentDeleteForm = document.querySelector('#admin-permanent-delete-form');
+const adminPermanentDeleteMessage = document.querySelector('#admin-permanent-delete-message');
+const adminPermanentDeleteError = document.querySelector('#admin-permanent-delete-error');
 const adminBackupResultModal = document.querySelector('#admin-backup-result-modal');
 const adminBackupResultCloseButton = document.querySelector('#admin-backup-result-close');
 const adminBackupResultOkButton = document.querySelector('#admin-backup-result-ok');
@@ -215,6 +226,7 @@ const teacherClassGradeSelect = document.querySelector('#teacher-class-grade');
 const teacherClassGenderSelect = document.querySelector('#teacher-class-gender');
 const teacherClassStudentCountSelect = document.querySelector('#teacher-class-student-count');
 const teacherClassStudentNames = document.querySelector('#teacher-class-student-names');
+const teacherClassRosterImportInput = document.querySelector('#teacher-class-roster-import');
 const teacherClassCancelButton = document.querySelector('#teacher-class-cancel');
 const teacherClassFormError = document.querySelector('#teacher-class-form-error');
 const teacherClassList = document.querySelector('#teacher-class-list');
@@ -300,6 +312,8 @@ let teacherHistoryEditMode = false;
 let pendingInvalidScoreWarnings = [];
 let pendingAdminStatusChange = null;
 let pendingAdminPasswordReset = null;
+let pendingAdminBackupRestore = null;
+let pendingAdminPermanentDelete = null;
 let signupSchools = [];
 let activeHistoryGraphSubject = '';
 let visibleHistoryGraphStudents = new Set();
@@ -699,7 +713,7 @@ function canTeacherEnterScores() {
 
 function approvedTeacherSchools() {
   return (authUser?.schoolMemberships || [])
-    .filter((item) => (item.role === 'teacher' && item.status === 'approved') || item.role === 'admin')
+    .filter((item) => ['teacher', 'admin'].includes(item.role) && item.status === 'approved')
     .map((item) => item.school)
     .filter(Boolean);
 }
@@ -2129,6 +2143,61 @@ async function createTeacherClassFromForm(event) {
   await loadTeacherClassIntoWorkspace(data.teacherClass);
 }
 
+function teacherClassImportErrorMessage(error) {
+  const messages = {
+    IMPORT_FILE_REQUIRED: 'יש לבחור קובץ Excel.',
+    IMPORT_FILE_TOO_LARGE: 'קובץ ה-Excel גדול מדי.',
+    IMPORT_READ_FAILED: 'לא ניתן לקרוא את הקובץ.',
+    INVALID_SHEET_STRUCTURE: 'מבנה גיליון לא תקין.',
+    CLASS_LIMIT_REACHED: 'ניתן ליצור עד 18 כיתות לכל משתמש.',
+    SCHOOL_ACCESS_DENIED: 'אין הרשאה ליצור כיתה בבית הספר שנבחר.',
+  };
+  return messages[error] || 'לא ניתן לייבא כיתות כרגע.';
+}
+
+async function importTeacherClassesFromRoster(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  teacherClassFormError.textContent = 'מייבא כיתות מהקובץ...';
+  try {
+    const params = new URLSearchParams({
+      grade: teacherClassGradeSelect.value,
+      gender: teacherClassGenderSelect.value,
+    });
+    if (teacherClassSchoolSelect?.value) {
+      params.set('schoolId', teacherClassSchoolSelect.value);
+    }
+
+    const response = await apiFetch(`/api/teacher/classes/import?${params.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+      body: await file.arrayBuffer(),
+    });
+    const data = await response.json().catch(() => ({}));
+    const skipped = Array.isArray(data.skipped) ? data.skipped : [];
+    if (!response.ok) {
+      const firstError = skipped[0]?.error || data.error;
+      teacherClassFormError.textContent = teacherClassImportErrorMessage(firstError);
+      return;
+    }
+
+    await refreshTeacherClasses();
+    const createdCount = Array.isArray(data.created) ? data.created.length : 0;
+    const skippedText = skipped.length ? ` ${skipped.length} גיליונות דולגו.` : '';
+    teacherClassFormError.textContent = `יובאו ${createdCount} כיתות.${skippedText}`;
+    if (data.created?.[0]) {
+      await loadTeacherClassIntoWorkspace(data.created[0]);
+    }
+  } catch (error) {
+    teacherClassFormError.textContent = 'לא ניתן לייבא כיתות כרגע.';
+  } finally {
+    teacherClassRosterImportInput.value = '';
+  }
+}
+
 async function saveCurrentTeacherClass(options = {}) {
   if (!activeTeacherClassId) {
     teacherClassFormError.textContent = 'יש לבחור או ליצור כיתה לפני שמירה.';
@@ -3119,6 +3188,7 @@ async function loadAdminDiagnostics() {
     <div class="teacher-summary-card">כיתות: ${diagnostics.classes}</div>
     <div class="teacher-summary-card">רשומות היסטוריה: ${diagnostics.historyRecords}</div>
     <div class="teacher-summary-card">גיבוי אחרון: ${diagnostics.latestBackup ? new Date(diagnostics.latestBackup).toLocaleString('he-IL') : '-'}</div>
+    <div class="teacher-summary-card">שחזור אחרון: ${diagnostics.latestRestore ? new Date(diagnostics.latestRestore).toLocaleString('he-IL') : '-'}</div>
   `;
 }
 
@@ -3199,9 +3269,22 @@ function renderAdminAuditLogFromFilter() {
     enable_user: 'הפעלת משתמש',
     disable_user: 'השבתת משתמש',
     restore_user: 'שחזור משתמש',
+    admin_login: 'כניסת מנהל',
+    password_change: 'שינוי סיסמה',
+    account_deactivate: 'השבתת חשבון עצמי',
     reset_password: 'איפוס סיסמה',
+    reset_password_failed: 'איפוס סיסמה נכשל',
+    permanent_delete_user: 'מחיקת משתמש',
+    permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     export_backup: 'הורדת גיבוי',
     restore_backup: 'ייבוא גיבוי',
+    restore_backup_failed: 'ייבוא גיבוי נכשל',
+    school_score_table_create: 'יצירת טבלת ציונים',
+    school_score_table_create_failed: 'יצירת טבלה נכשלה',
+    school_score_table_import: 'ייבוא טבלאות ציונים',
+    school_score_table_import_failed: 'ייבוא טבלאות נכשל',
+    school_score_table_delete: 'מחיקת טבלת ציונים',
+    school_score_table_delete_failed: 'מחיקת טבלה נכשלה',
   };
   const filterValue = adminAuditFilter?.value || 'all';
   const entries = filterValue === 'all' ? adminAuditEntries : adminAuditEntries.filter((entry) => entry.action === filterValue);
@@ -3294,10 +3377,53 @@ async function restoreAdminBackupFromFile(file) {
   adminRestoreMessage.textContent = '';
   try {
     const backup = JSON.parse(await file.text());
+    pendingAdminBackupRestore = backup;
+    adminBackupConfirmError.textContent = '';
+    adminBackupConfirmForm.reset();
+    adminBackupConfirmModal.classList.remove('is-hidden');
+    adminBackupConfirmModal.setAttribute('aria-hidden', 'false');
+  } catch (error) {
+    openAdminBackupResultModal(`<p><strong>ייבוא הגיבוי נכשל.</strong></p><p>קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.</p><p class="backup-error-details">פרטים: ${error.message}</p>`);
+    adminRestoreMessage.textContent = 'קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.';
+    adminBackupImport.value = '';
+  }
+}
+
+function closeAdminBackupConfirmModal() {
+  pendingAdminBackupRestore = null;
+  adminBackupConfirmForm.reset();
+  adminBackupConfirmError.textContent = '';
+  adminBackupConfirmModal.classList.add('is-hidden');
+  adminBackupConfirmModal.setAttribute('aria-hidden', 'true');
+  adminBackupImport.value = '';
+}
+
+async function confirmAdminBackupRestore(event) {
+  event.preventDefault();
+  if (!pendingAdminBackupRestore) {
+    closeAdminBackupConfirmModal();
+    return;
+  }
+
+  const payload = Object.fromEntries(new FormData(adminBackupConfirmForm).entries());
+  adminBackupConfirmError.textContent = '';
+  if (String(payload.confirmation || '').trim() !== 'delete') {
+    adminBackupConfirmError.textContent = 'יש להקליד delete כדי להמשיך.';
+    return;
+  }
+
+  const submitButton = event.submitter;
+  if (submitButton) submitButton.disabled = true;
+
+  try {
     const response = await apiFetch('/api/admin/backup/restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backup }),
+      body: JSON.stringify({
+        backup: pendingAdminBackupRestore,
+        currentAdminPassword: payload.currentAdminPassword,
+        confirmation: payload.confirmation,
+      }),
     });
 
     const responseText = await response.text();
@@ -3321,15 +3447,26 @@ async function restoreAdminBackupFromFile(file) {
       <p>אם נותקת, יש להתחבר מחדש.</p>
     `);
     adminRestoreMessage.textContent = 'הגיבוי יובא.';
+    closeAdminBackupConfirmModal();
     await loadAdminDiagnostics();
     await loadAdminUsers();
     await loadInactiveUsers();
     await loadAdminAuditLog();
   } catch (error) {
-    openAdminBackupResultModal(`<p><strong>ייבוא הגיבוי נכשל.</strong></p><p>קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.</p><p class="backup-error-details">פרטים: ${error.message}</p>`);
-    adminRestoreMessage.textContent = 'קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.';
+    const message = error.message === 'RESTORE_DISABLED'
+      ? 'ייבוא גיבוי מושבת בסביבת הייצור.'
+      : error.message === 'INVALID_ADMIN_PASSWORD'
+        ? 'סיסמת המנהל אינה נכונה.'
+        : error.message === 'INVALID_CONFIRMATION'
+          ? 'אישור הפעולה אינו תקין.'
+          : 'קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.';
+    adminBackupConfirmError.textContent = message;
+    openAdminBackupResultModal(`<p><strong>ייבוא הגיבוי נכשל.</strong></p><p>${escapeHtml(message)}</p><p class="backup-error-details">פרטים: ${escapeHtml(error.message)}</p>`);
+    adminRestoreMessage.textContent = message;
   } finally {
-    adminBackupImport.value = '';
+    if (submitButton) {
+      setTimeout(() => { submitButton.disabled = false; }, 600);
+    }
   }
 }
 
@@ -3342,6 +3479,73 @@ function openAdminBackupResultModal(messageHtml) {
 function closeAdminBackupResultModal() {
   adminBackupResultModal.classList.add('is-hidden');
   adminBackupResultModal.setAttribute('aria-hidden', 'true');
+}
+
+function openAdminPermanentDeleteModal(button) {
+  pendingAdminPermanentDelete = {
+    userId: Number(button.dataset.permanentDeleteUserId),
+    name: button.dataset.permanentDeleteUserName || '',
+  };
+  adminPermanentDeleteMessage.textContent = `מחיקה לצמיתות של ${pendingAdminPermanentDelete.name}. פעולה זו מיועדת רק לחשבון מושבת ולא ניתן לבטל אותה.`;
+  adminPermanentDeleteError.textContent = '';
+  adminPermanentDeleteForm.reset();
+  adminPermanentDeleteModal.classList.remove('is-hidden');
+  adminPermanentDeleteModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminPermanentDeleteModal() {
+  pendingAdminPermanentDelete = null;
+  adminPermanentDeleteForm.reset();
+  adminPermanentDeleteError.textContent = '';
+  adminPermanentDeleteModal.classList.add('is-hidden');
+  adminPermanentDeleteModal.setAttribute('aria-hidden', 'true');
+}
+
+async function submitAdminPermanentDelete(event) {
+  event.preventDefault();
+  if (!pendingAdminPermanentDelete) {
+    closeAdminPermanentDeleteModal();
+    return;
+  }
+
+  const payload = Object.fromEntries(new FormData(adminPermanentDeleteForm).entries());
+  adminPermanentDeleteError.textContent = '';
+  if (String(payload.confirmation || '').trim() !== 'delete') {
+    adminPermanentDeleteError.textContent = 'יש להקליד delete כדי להמשיך.';
+    return;
+  }
+
+  const submitButton = event.submitter;
+  if (submitButton) submitButton.disabled = true;
+
+  const response = await apiFetch(`/api/admin/users/${pendingAdminPermanentDelete.userId}/permanent`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentAdminPassword: payload.currentAdminPassword, confirmation: payload.confirmation }),
+  });
+
+  if (submitButton) {
+    setTimeout(() => { submitButton.disabled = false; }, 600);
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    adminPermanentDeleteError.textContent = data.error === 'INVALID_ADMIN_PASSWORD'
+      ? 'סיסמת המנהל אינה נכונה.'
+      : data.error === 'INVALID_CONFIRMATION'
+        ? 'אישור הפעולה אינו תקין.'
+        : data.error === 'USER_ACTIVE'
+          ? 'יש להשבית את המשתמש לפני מחיקה לצמיתות.'
+          : 'לא ניתן למחוק את המשתמש כרגע.';
+    return;
+  }
+
+  adminRestoreMessage.textContent = 'המשתמש נמחק לצמיתות.';
+  closeAdminPermanentDeleteModal();
+  await loadAdminOverview();
+  await loadAdminUsers();
+  await loadInactiveUsers();
+  await loadAdminAuditLog();
 }
 
 function openAdminStatusModal(button) {
@@ -3459,7 +3663,12 @@ async function submitAdminPasswordReset(event) {
   }
 
   if (!response.ok) {
-    adminPasswordError.textContent = 'לא ניתן לאפס סיסמה כרגע.';
+    const data = await response.json().catch(() => ({}));
+    adminPasswordError.textContent = data.error === 'INVALID_ADMIN_PASSWORD'
+      ? 'סיסמת המנהל אינה נכונה.'
+      : data.error === 'INVALID_PASSWORD'
+        ? 'הסיסמה החדשה חייבת לכלול לפחות 6 תווים.'
+        : 'לא ניתן לאפס סיסמה כרגע.';
     return;
   }
 
@@ -3497,6 +3706,7 @@ async function refreshAuthUser() {
   activeTeacherClassId = null;
   authUser = data.user;
   syncMemberControls();
+  syncTeacherClassSchoolField();
 }
 
 async function handleMemberLogin(event) {
@@ -3525,6 +3735,7 @@ async function handleMemberLogin(event) {
   activeTeacherClassId = null;
   authUser = data.user;
   syncMemberControls();
+  syncTeacherClassSchoolField();
   await refreshTeacherClasses();
   if (authUser.mustChangePassword) {
     applyRoute('profile');
@@ -3853,6 +4064,7 @@ async function saveProfileDetails(event) {
   authUser = data.user;
   profileDetailsMessage.textContent = 'הפרטים נשמרו.';
   syncMemberControls();
+  syncTeacherClassSchoolField();
 }
 
 async function changeProfilePassword(event) {
@@ -5150,10 +5362,14 @@ function handleTeacherNamePaste(event) {
     return;
   }
 
-  const names = (event.clipboardData?.getData('text') || '')
-    .split(/[,.\n\r\t]+/)
-    .map((name) => name.trim())
-    .filter(Boolean);
+  const clipboardText = event.clipboardData?.getData('text') || '';
+  const grid = parseClipboardGrid(clipboardText);
+  const names = grid.length > 1
+    ? grid.map((row) => row.map((cell) => cell.trim()).filter(Boolean).join(' ')).filter(Boolean)
+    : clipboardText
+      .split(/[,\.\n\r\t]+/)
+      .map((name) => name.trim())
+      .filter(Boolean);
 
   if (names.length < 2) {
     return;
@@ -5689,6 +5905,7 @@ async function init() {
     teacherClassForm.addEventListener('keydown', handleTeacherNameKeydown);
     teacherClassForm.addEventListener('paste', handleTeacherNamePaste);
   }
+  if (teacherClassRosterImportInput) { teacherClassRosterImportInput.addEventListener('change', importTeacherClassesFromRoster); }
   if (teacherRefreshClassesButton) { teacherRefreshClassesButton.addEventListener('click', refreshTeacherClasses); }
   if (teacherHistoryRefreshButton) { teacherHistoryRefreshButton.addEventListener('click', refreshCurrentTeacherHistory); }
   if (teacherClassViewToggleButton) {
@@ -6085,15 +6302,7 @@ async function init() {
       }
 
       if (permanentDeleteButton) {
-        const name = permanentDeleteButton.dataset.permanentDeleteUserName;
-        const confirmed = window.confirm(`מחיקה לצמיתות של ${name}? יש לבצע רק לאחר השבתה ובאישור סופי.`);
-        if (confirmed) {
-          apiFetch(`/api/admin/users/${permanentDeleteButton.dataset.permanentDeleteUserId}/permanent`, { method: 'DELETE' }).then((response) => {
-            if (response.ok) {
-              loadAdminOverview();
-            }
-          });
-        }
+        openAdminPermanentDeleteModal(permanentDeleteButton);
       }
     });
   }
@@ -6111,6 +6320,12 @@ async function init() {
   if (adminGeneratePasswordButton) { adminGeneratePasswordButton.addEventListener('click', fillGeneratedTemporaryPassword); }
   if (adminPasswordCancelButton) { adminPasswordCancelButton.addEventListener('click', closeAdminPasswordModal); }
   if (adminPasswordCloseButton) { adminPasswordCloseButton.addEventListener('click', closeAdminPasswordModal); }
+  if (adminBackupConfirmForm) { adminBackupConfirmForm.addEventListener('submit', confirmAdminBackupRestore); }
+  if (adminBackupConfirmCancelButton) { adminBackupConfirmCancelButton.addEventListener('click', closeAdminBackupConfirmModal); }
+  if (adminBackupConfirmCloseButton) { adminBackupConfirmCloseButton.addEventListener('click', closeAdminBackupConfirmModal); }
+  if (adminPermanentDeleteForm) { adminPermanentDeleteForm.addEventListener('submit', submitAdminPermanentDelete); }
+  if (adminPermanentDeleteCancelButton) { adminPermanentDeleteCancelButton.addEventListener('click', closeAdminPermanentDeleteModal); }
+  if (adminPermanentDeleteCloseButton) { adminPermanentDeleteCloseButton.addEventListener('click', closeAdminPermanentDeleteModal); }
   if (adminBackupResultOkButton) { adminBackupResultOkButton.addEventListener('click', closeAdminBackupResultModal); }
   if (adminBackupResultCloseButton) { adminBackupResultCloseButton.addEventListener('click', closeAdminBackupResultModal); }
   if (schoolAdminTeacherModeButton) { schoolAdminTeacherModeButton.addEventListener('click', () => applyRoute('member-classes')); }
