@@ -550,7 +550,7 @@ app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request,
 app.get('/api/auth/2fa/status', requireAuth, async (request, response) => {
   if (!requireGlobalAdmin(request, response)) return;
   const state = await getAdminTwoFactorState(request.authUser.id);
-  response.json({ enabled: Boolean(state?.enabled), enabledAt: state?.enabledAt || '', recoveryCodeCount: state?.recoveryCodeCount || 0 });
+  response.json({ enabled: Boolean(state?.enabled), bypassed: isAdminTwoFactorBypassed(), enabledAt: state?.enabledAt || '', recoveryCodeCount: state?.recoveryCodeCount || 0 });
 });
 
 app.post('/api/auth/2fa/setup/start', twoFactorSetupRateLimit, requireAuth, async (request, response) => {

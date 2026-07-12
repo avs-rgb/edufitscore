@@ -3221,8 +3221,9 @@ async function loadAdminTwoFactorStatus() {
 
 function renderAdminTwoFactorStatus(data) {
   const enabled = Boolean(data.enabled);
+  const bypassed = Boolean(data.bypassed);
   adminTwoFactorStatus.innerHTML = enabled
-    ? `<p><strong>אימות דו-שלבי פעיל.</strong> קודי שחזור זמינים: ${Number(data.recoveryCodeCount || 0)}.</p>`
+    ? `<p><strong>אימות דו-שלבי פעיל.</strong> קודי שחזור זמינים: ${Number(data.recoveryCodeCount || 0)}.</p>${bypassed ? '<p class="login-error">אזהרה: מעקף חירום DISABLE_ADMIN_2FA פעיל ולכן הכניסה לא תבקש קוד.</p>' : ''}`
     : '<p><strong>אימות דו-שלבי כבוי.</strong> מומלץ להפעיל עבור חשבון מנהל גלובלי.</p>';
   adminTwoFactorStartForm.classList.toggle('is-hidden', enabled);
   adminTwoFactorDisableForm.classList.toggle('is-hidden', !enabled);
