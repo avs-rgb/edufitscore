@@ -1610,7 +1610,7 @@ p {
 #profile-admin-security-panel {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(220px, 0.85fr) minmax(280px, 1.15fr);
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
   align-items: start;
   gap: 16px 24px;
   min-width: 0;
@@ -1622,22 +1622,29 @@ p {
 }
 
 #profile-admin-security-panel h3,
-#profile-admin-security-panel .admin-security-status,
 #profile-admin-security-panel .login-error,
 #profile-admin-security-panel .admin-2fa-setup,
 #profile-admin-security-panel .admin-2fa-recovery {
   grid-column: 1 / -1;
 }
 
+#profile-admin-security-panel h3 {
+  justify-self: end;
+}
+
 #profile-admin-security-panel .admin-security-status {
   min-width: 0;
+  justify-self: end;
+  text-align: right;
   overflow-wrap: anywhere;
 }
 
 #profile-admin-security-panel .admin-restore-compact-form {
   width: 100%;
-  max-width: none;
+  max-width: 360px;
   min-width: 0;
+  justify-self: start;
+  box-sizing: border-box;
 }
 
 #profile-admin-security-panel .password-field,
