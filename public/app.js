@@ -179,6 +179,7 @@ const profileSchoolRequestSelect = document.querySelector('#profile-school-reque
 const profileSchoolRequestButton = document.querySelector('#profile-school-request-button');
 const profileSchoolRequestMessage = document.querySelector('#profile-school-request-message');
 const profilePasswordForm = document.querySelector('#profile-password-form');
+const profileAdminSecurityPanel = document.querySelector('#profile-admin-security-panel');
 const profileDeactivateForm = document.querySelector('#profile-deactivate-form');
 const profileDeactivateOpenButton = document.querySelector('#profile-deactivate-open');
 const profileDetailsMessage = document.querySelector('#profile-details-message');
@@ -3185,7 +3186,6 @@ async function loadAdminOverview() {
   const data = await response.json();
   adminSummary.textContent = `${data.user.fullName} (${data.user.email}) | ${data.summary}`;
   await loadAdminDiagnostics();
-  await loadAdminTwoFactorStatus();
   await loadAdminUsers();
   await loadInactiveUsers();
   await loadAdminAuditLog();
@@ -4132,6 +4132,10 @@ function fillProfileForm() {
     });
   });
   profileDeactivateForm.classList.toggle('is-hidden', isAdmin);
+  profileAdminSecurityPanel?.classList.toggle('is-hidden', !isAdmin);
+  if (isAdmin) {
+    loadAdminTwoFactorStatus();
+  }
   loadSchoolsForSignup().then(renderProfileSchoolRequestOptions);
   if (authUser.mustChangePassword) {
     profilePasswordMessage.textContent = 'יש להחליף סיסמה לפני המשך שימוש במערכת.';
