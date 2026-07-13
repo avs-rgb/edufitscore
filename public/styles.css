@@ -936,6 +936,26 @@ p {
   margin-top: 18px;
 }
 
+.admin-security-shortcut {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #ead8ca;
+  border-radius: 18px;
+  background: #fffaf5;
+}
+
+.admin-security-shortcut h3,
+.admin-security-shortcut p {
+  margin: 0;
+}
+
+.admin-security-shortcut p {
+  margin-top: 6px;
+  color: #6f5344;
+  font-weight: 700;
+}
+
 .admin-compact-actions {
   display: block;
 }
@@ -1058,6 +1078,7 @@ p {
 
 .admin-audit-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   border: 2px solid #c28f68;
@@ -1072,6 +1093,8 @@ p {
   border-left: 1px solid #ead8ca;
   text-align: right;
   font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .admin-audit-table th {
@@ -1674,6 +1697,10 @@ p {
 }
 
 #admin-view .privacy-card {
+  width: min(1600px, calc(100vw - 16px));
+}
+
+#admin-security-view .privacy-card {
   width: min(1600px, calc(100vw - 16px));
 }
 
@@ -2599,6 +2626,50 @@ p {
 
 .admin-security-panel {
   border-color: rgba(31, 111, 235, 0.25);
+}
+
+.admin-security-events-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+#admin-security-events .admin-audit-table {
+  min-width: 980px;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(1),
+#admin-security-events .admin-audit-table td:nth-child(1) {
+  width: 14%;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(2),
+#admin-security-events .admin-audit-table td:nth-child(2) {
+  width: 16%;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(3),
+#admin-security-events .admin-audit-table td:nth-child(3) {
+  width: 18%;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(4),
+#admin-security-events .admin-audit-table td:nth-child(4) {
+  width: 12%;
+  direction: ltr;
+  text-align: left;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(5),
+#admin-security-events .admin-audit-table td:nth-child(5) {
+  width: 16%;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(6),
+#admin-security-events .admin-audit-table td:nth-child(6) {
+  width: 24%;
+  direction: ltr;
+  text-align: left;
 }
 
 .admin-security-status p,

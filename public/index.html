@@ -33,7 +33,6 @@
           <button id="member-profile-button" type="button" class="back-home-button is-hidden">פרופיל</button>
           <button id="share-site-whatsapp" type="button" class="share-site-button">WhatsApp</button>
           <button id="admin-nav-button" type="button" class="back-home-button is-hidden">אזור ניהול</button>
-          <button id="admin-security-nav-button" type="button" class="back-home-button is-hidden">אבטחה</button>
           <button id="privacy-button" type="button" class="back-home-button">מידע משפטי</button>
           <button id="terms-button" type="button" class="back-home-button is-hidden">תנאי שימוש</button>
           <button id="accessibility-button" type="button" class="back-home-button is-hidden">הצהרת נגישות</button>
@@ -312,6 +311,13 @@
             <p>זהו שלד ראשוני של אזור הניהול.</p>
             <p>בשלב הבא ניתן יהיה להוסיף כאן ניהול משתמשים, העלאת טבלאות ציונים, פניות ותצורות מערכת.</p>
             <div id="admin-summary" class="admin-summary-box"></div>
+            <section class="admin-security-shortcut admin-users-panel">
+              <div>
+                <h3>אבטחה</h3>
+                <p>אירועי כניסה, 2FA ופעולות מסוכנות.</p>
+              </div>
+              <button id="admin-security-nav-button" type="button" class="teacher-panel-button admin-compact-button is-hidden">פתיחת אבטחה</button>
+            </section>
             <section class="admin-users-panel">
               <h3>אבחון מערכת</h3>
               <div id="admin-diagnostics" class="admin-diagnostics"></div>
@@ -366,7 +372,7 @@
           </div>
           <div class="privacy-content">
             <p>אירועי אבטחה גלובליים: כניסות שנכשלו למנהל, 2FA, איפוסי סיסמה ופעולות מסוכנות.</p>
-            <div id="admin-security-events" class="admin-audit-log"></div>
+            <div id="admin-security-events" class="admin-audit-log admin-security-events-container"></div>
           </div>
         </div>
       </section>
