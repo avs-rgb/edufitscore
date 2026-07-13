@@ -16,6 +16,7 @@ const topControls = document.querySelector('.top-controls');
 const guestEntryButton = document.querySelector('#guest-entry-button');
 const memberEntryButton = document.querySelector('#member-entry-button');
 const topHomeButton = document.querySelector('#top-home-button');
+const topUserLabel = document.querySelector('#top-user-label');
 const adminNavButton = document.querySelector('#admin-nav-button');
 const adminSecurityNavButton = document.querySelector('#admin-security-nav-button');
 const memberProfileButton = document.querySelector('#member-profile-button');
@@ -1522,6 +1523,10 @@ function syncMemberControls() {
   const isAdmin = authUser?.role === 'admin';
   const isSchoolAdmin = Boolean(authUser?.isSchoolAdmin);
   adminNavButton.textContent = 'אזור ניהול';
+  if (topUserLabel) {
+    topUserLabel.textContent = authUser?.email || '';
+    topUserLabel.classList.toggle('is-hidden', !authUser?.email);
+  }
   adminNavButton.classList.toggle('is-hidden', !isAdmin);
   adminSecurityNavButton?.classList.toggle('is-hidden', !isAdmin);
   memberProfileButton.classList.toggle('is-hidden', !authUser);
@@ -3201,7 +3206,7 @@ async function loadAdminOverview() {
   }
 
   const data = await response.json();
-  adminSummary.textContent = `${data.user.fullName} (${data.user.email}) | ${data.summary}`;
+  adminSummary.textContent = data.summary || '';
   await loadAdminDiagnostics();
   await loadAdminUsers();
   await loadInactiveUsers();
