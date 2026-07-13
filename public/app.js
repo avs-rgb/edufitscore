@@ -3201,12 +3201,13 @@ async function loadAdminOverview() {
   const response = await fetch('/api/admin/overview');
 
   if (!response.ok) {
-    adminSummary.textContent = 'לא ניתן לטעון את אזור הניהול כעת.';
+    if (adminSummary) {
+      adminSummary.textContent = 'לא ניתן לטעון את אזור הניהול כעת.';
+    }
     return;
   }
 
   const data = await response.json();
-  adminSummary.textContent = data.summary || '';
   await loadAdminDiagnostics();
   await loadAdminUsers();
   await loadInactiveUsers();
