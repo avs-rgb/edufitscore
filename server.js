@@ -11,6 +11,7 @@ const { sendMail } = require('./lib/mailer');
 const { matchSchoolScoreTableResult } = require('./public/school-score');
 const {
   verifyUser,
+  findUserForSecurityAudit,
   createUser,
   verifyUserPassword,
   updateUserProfile,
@@ -56,6 +57,8 @@ const {
   createSession,
   getSessionCsrfTokenHash,
   findUserBySessionToken,
+  listUserSessions,
+  deleteOtherUserSessions,
   deleteSession,
   listTeacherClasses,
   getTeacherClass,
@@ -360,6 +363,32 @@ function auditRequestDetails(request, extra = {}) {
   };
 }
 
+function sessionRequestDetails(request) {
+  return {
+    ip: request.ip || '',
+    userAgent: request.get('user-agent') || '',
+  };
+}
+
+const passwordSpecialPattern = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+
+function validatePasswordPolicy(password) {
+  const value = String(password || '');
+  return value.length >= 8
+    && /[a-z]/.test(value)
+    && /[A-Z]/.test(value)
+    && /\d/.test(value)
+    && passwordSpecialPattern.test(value);
+}
+
+function rejectWeakPassword(response, password) {
+  if (validatePasswordPolicy(password)) {
+    return false;
+  }
+  response.status(400).json({ error: 'WEAK_PASSWORD' });
+  return true;
+}
+
 function requireGlobalAdmin(request, response) {
   if (request.authUser?.role !== 'admin') {
     response.status(403).json({ error: 'ADMIN_REQUIRED' });
@@ -497,6 +526,14 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
   const user = await verifyUser(email, password);
 
   if (!user) {
+    try {
+      const existing = await findUserForSecurityAudit(String(email || '').trim().toLowerCase());
+      if (existing?.role === 'admin') {
+        await logAdminAction(existing.id, existing.id, 'admin_login_failed', auditRequestDetails(request, { email: existing.email, reason: existing.isActive ? 'INVALID_CREDENTIALS' : 'INACTIVE_ACCOUNT' }));
+      }
+    } catch {
+      // Keep login failure response neutral and do not reveal whether the email exists.
+    }
     response.status(401).json({ error: 'Invalid email or password' });
     return;
   }
@@ -510,7 +547,7 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
     }
   }
 
-  const session = await createSession(user.id);
+  const session = await createSession(user.id, sessionRequestDetails(request));
   setAuthCookies(response, session);
   if (user.role === 'admin') {
     await logAdminAction(user.id, user.id, 'admin_login', auditRequestDetails(request, { email: user.email }));
@@ -539,7 +576,7 @@ app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request,
   }
 
   await consumeTwoFactorChallenge(challengeToken);
-  const session = await createSession(challenge.userId);
+  const session = await createSession(challenge.userId, sessionRequestDetails(request));
   setAuthCookies(response, session);
   const user = await findUserBySessionToken(session.token);
   await logAdminAction(challenge.userId, challenge.userId, usedRecoveryCode ? 'admin_2fa_recovery_code_used' : 'admin_2fa_login_success', auditRequestDetails(request));
@@ -612,10 +649,11 @@ app.post('/api/auth/signup', signupRateLimit, async (request, response) => {
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
     return;
   }
+  if (rejectWeakPassword(response, password)) return;
 
   try {
     const user = await createUser({ firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password });
-    const session = await createSession(user.id);
+    const session = await createSession(user.id, sessionRequestDetails(request));
     setAuthCookies(response, session);
     response.status(201).json({ user, csrfToken: session.csrfToken });
   } catch (error) {
@@ -688,6 +726,7 @@ app.post('/api/auth/reset-password', passwordResetRateLimit, async (request, res
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
     return;
   }
+  if (rejectWeakPassword(response, newPassword)) return;
 
   try {
     await resetPasswordWithToken(token, newPassword);
@@ -702,6 +741,18 @@ app.post('/api/auth/logout', async (request, response) => {
   await deleteSession(request.cookies?.edufitscore_session);
   clearAuthCookies(response);
   response.json({ ok: true });
+});
+
+app.get('/api/auth/sessions', requireAuth, async (request, response) => {
+  response.json({ sessions: await listUserSessions(request.authUser.id, request.cookies?.edufitscore_session || '') });
+});
+
+app.post('/api/auth/sessions/logout-others', requireAuth, async (request, response) => {
+  const deleted = await deleteOtherUserSessions(request.authUser.id, request.cookies?.edufitscore_session || '');
+  if (request.authUser.role === 'admin') {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'logout_other_sessions', auditRequestDetails(request, { deleted }));
+  }
+  response.json({ ok: true, deleted });
 });
 
 app.put('/api/auth/profile', requireAuth, async (request, response) => {
@@ -730,6 +781,7 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
     return;
   }
+  if (rejectWeakPassword(response, newPassword)) return;
 
   try {
     await changeUserPassword(request.authUser.id, oldPassword, newPassword);
@@ -960,6 +1012,30 @@ app.get('/api/admin/audit-log', requireAuth, async (request, response) => {
   response.json({ entries: await listAdminAuditLog(50) });
 });
 
+app.get('/api/admin/security-events', requireAuth, async (request, response) => {
+  if (request.authUser.role !== 'admin') {
+    response.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  const securityActions = new Set([
+    'admin_login_failed',
+    'admin_2fa_login_failed',
+    'admin_2fa_recovery_code_used',
+    'admin_2fa_enabled',
+    'admin_2fa_disabled',
+    'password_change',
+    'reset_password',
+    'reset_password_failed',
+    'restore_backup',
+    'restore_backup_failed',
+    'permanent_delete_user',
+    'permanent_delete_user_failed',
+    'logout_other_sessions',
+  ]);
+  const entries = (await listAdminAuditLog(200)).filter((entry) => securityActions.has(entry.action));
+  response.json({ entries });
+});
+
 app.get('/api/admin/backup', requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
@@ -1089,7 +1165,7 @@ app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit,
   let { newPassword, newPasswordRepeat, generateTemporary } = request.body || {};
 
   if (generateTemporary) {
-    newPassword = crypto.randomBytes(6).toString('base64url');
+    newPassword = `Ef${crypto.randomBytes(4).toString('hex')}!7A`;
     newPasswordRepeat = newPassword;
   }
 
@@ -1104,6 +1180,7 @@ app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit,
     response.status(400).json({ error: 'PASSWORD_MISMATCH' });
     return;
   }
+  if (rejectWeakPassword(response, newPassword)) return;
 
   try {
     const user = await adminResetUserPassword(userId, newPassword, request.cookies?.edufitscore_session);

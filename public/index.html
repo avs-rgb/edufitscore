@@ -33,6 +33,7 @@
           <button id="member-profile-button" type="button" class="back-home-button is-hidden">פרופיל</button>
           <button id="share-site-whatsapp" type="button" class="share-site-button">WhatsApp</button>
           <button id="admin-nav-button" type="button" class="back-home-button is-hidden">אזור ניהול</button>
+          <button id="admin-security-nav-button" type="button" class="back-home-button is-hidden">אבטחה</button>
           <button id="privacy-button" type="button" class="back-home-button">מידע משפטי</button>
           <button id="terms-button" type="button" class="back-home-button is-hidden">תנאי שימוש</button>
           <button id="accessibility-button" type="button" class="back-home-button is-hidden">הצהרת נגישות</button>
@@ -140,13 +141,18 @@
 
       <section id="member-signup-view" class="home-view is-hidden">
         <div class="home-card panel member-login-card member-signup-card">
-          <h2>הרשמת מורים</h2>
-          <p class="home-subtitle">פתיחת חשבון מורה לניהול כיתות, היסטוריה ושיאים אישיים.</p>
-          <div class="quick-start-guide" aria-label="איך מתחילים">
-            <h3>איך מתחילים?</h3>
-            <p><strong>רכז/ת חנ"ג:</strong> נרשמים כרכז/ת, מגדירים בית ספר, מעלים טבלאות ציונים ומאשרים מורים שמבקשים להתחבר.</p>
-            <p><strong>מורה:</strong> נרשמים כמורה, בוחרים בית ספר, ממתינים לאישור, יוצרים כיתה ומתחילים להזין תוצאות.</p>
+          <div class="teacher-title-with-help signup-title-with-help">
+            <h2>הרשמת מורים</h2>
+            <span class="inline-help-anchor">
+              <button type="button" class="inline-help-button" aria-describedby="signup-quick-start-tooltip" aria-label="איך מתחילים">i</button>
+              <div id="signup-quick-start-tooltip" class="inline-help-tooltip" role="tooltip">
+                <strong>איך מתחילים?</strong>
+                <span><b>רכז/ת חנ"ג:</b> נרשמים כרכז/ת, מגדירים בית ספר, מעלים טבלאות ציונים ומאשרים מורים שמבקשים להתחבר.</span>
+                <span><b>מורה:</b> נרשמים כמורה, בוחרים בית ספר, ממתינים לאישור, יוצרים כיתה ומתחילים להזין תוצאות.</span>
+              </div>
+            </span>
           </div>
+          <p class="home-subtitle">פתיחת חשבון מורה לניהול כיתות, היסטוריה ושיאים אישיים.</p>
           <form id="member-signup-form" class="member-login-form">
             <label class="field-label" for="signup-first-name">שם פרטי</label>
             <input id="signup-first-name" name="firstName" type="text" autocomplete="given-name" pattern="[\p{L} ]+" required />
@@ -349,6 +355,18 @@
               </div>
               <div id="admin-audit-log" class="admin-audit-log"></div>
             </section>
+          </div>
+        </div>
+      </section>
+      <section id="admin-security-view" class="privacy-view is-hidden">
+        <div class="privacy-card panel">
+          <div class="privacy-header">
+            <h2>אבטחה</h2>
+            <button id="admin-security-back" type="button" class="back-home-button">חזרה לניהול</button>
+          </div>
+          <div class="privacy-content">
+            <p>אירועי אבטחה גלובליים: כניסות שנכשלו למנהל, 2FA, איפוסי סיסמה ופעולות מסוכנות.</p>
+            <div id="admin-security-events" class="admin-audit-log"></div>
           </div>
         </div>
       </section>
@@ -681,6 +699,12 @@
               </form>
               <div id="admin-2fa-message" class="login-error" role="status" aria-live="polite"></div>
             </section>
+            <section id="profile-sessions-panel" class="profile-form admin-users-panel">
+              <h3>פעילות התחברות</h3>
+              <div id="profile-sessions-list" class="school-admin-teacher-details"></div>
+              <button id="profile-logout-other-sessions" type="button" class="back-home-button">התנתקות ממכשירים אחרים</button>
+              <div id="profile-sessions-message" class="login-error" role="status" aria-live="polite"></div>
+            </section>
             <form id="profile-deactivate-form" class="member-login-form profile-form danger-zone">
               <h3>השבתת חשבון</h3>
               <p>החשבון יושבת ולא ניתן יהיה להתחבר אליו. הכיתות וההיסטוריה יישמרו בארכיון.</p>
@@ -782,17 +806,7 @@
         <section id="teacher-home-view" class="teacher-subview">
           <section class="panel teacher-class-management">
             <div class="teacher-panel-header">
-              <div class="teacher-title-with-help">
-                <h2>ניהול כיתות</h2>
-                <span class="inline-help-anchor">
-                  <button type="button" class="inline-help-button" aria-describedby="teacher-quick-start-tooltip" aria-label="איך מתחילים">i</button>
-                  <div id="teacher-quick-start-tooltip" class="inline-help-tooltip" role="tooltip">
-                    <strong>איך מתחילים?</strong>
-                    <span><b>רכז/ת חנ"ג:</b> מגדירים בית ספר, מעלים טבלאות ציונים ומאשרים מורים.</span>
-                    <span><b>מורה:</b> בוחרים בית ספר בהרשמה, ממתינים לאישור, יוצרים כיתה ומזינים תוצאות.</span>
-                  </div>
-                </span>
-              </div>
+              <h2>ניהול כיתות</h2>
               <button id="teacher-school-admin-switch" type="button" class="back-home-button is-hidden">רכז/ת חנ"ג</button>
               <div class="teacher-entry-actions">
                 <button id="teacher-class-view-toggle" type="button" class="back-home-button">תצוגה</button>

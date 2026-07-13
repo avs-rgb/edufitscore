@@ -17,6 +17,7 @@ const guestEntryButton = document.querySelector('#guest-entry-button');
 const memberEntryButton = document.querySelector('#member-entry-button');
 const topHomeButton = document.querySelector('#top-home-button');
 const adminNavButton = document.querySelector('#admin-nav-button');
+const adminSecurityNavButton = document.querySelector('#admin-security-nav-button');
 const memberProfileButton = document.querySelector('#member-profile-button');
 const memberLogoutButton = document.querySelector('#member-logout-button');
 const heroHomeButton = document.querySelector('#hero-home-button');
@@ -66,6 +67,9 @@ const signupSchoolNameInput = document.querySelector('#signup-school');
 const signupSchoolCityInput = document.querySelector('#signup-school-city');
 const signupInviteTokenInput = document.querySelector('#signup-invite-token');
 const adminView = document.querySelector('#admin-view');
+const adminSecurityView = document.querySelector('#admin-security-view');
+const adminSecurityBackButton = document.querySelector('#admin-security-back');
+const adminSecurityEvents = document.querySelector('#admin-security-events');
 const adminSummary = document.querySelector('#admin-summary');
 const adminLogoutButton = document.querySelector('#admin-logout-button');
 const adminRestoreUserForm = document.querySelector('#admin-restore-user-form');
@@ -180,6 +184,9 @@ const profileSchoolRequestButton = document.querySelector('#profile-school-reque
 const profileSchoolRequestMessage = document.querySelector('#profile-school-request-message');
 const profilePasswordForm = document.querySelector('#profile-password-form');
 const profileAdminSecurityPanel = document.querySelector('#profile-admin-security-panel');
+const profileSessionsList = document.querySelector('#profile-sessions-list');
+const profileLogoutOtherSessionsButton = document.querySelector('#profile-logout-other-sessions');
+const profileSessionsMessage = document.querySelector('#profile-sessions-message');
 const profileDeactivateForm = document.querySelector('#profile-deactivate-form');
 const profileDeactivateOpenButton = document.querySelector('#profile-deactivate-open');
 const profileDetailsMessage = document.querySelector('#profile-details-message');
@@ -467,6 +474,7 @@ const staticViews = {
   resetPassword: resetPasswordView,
   signup: memberSignupView,
   admin: adminView,
+  adminSecurity: adminSecurityView,
   schoolAdmin: schoolAdminView,
   schoolAdminScoreTables: schoolAdminScoreTablesView,
   profile: memberProfileView,
@@ -511,6 +519,10 @@ function parseRouteHash() {
     return 'admin';
   }
 
+  if (hash === 'admin-security') {
+    return 'adminSecurity';
+  }
+
   if (hash === 'school-admin') {
     return 'schoolAdmin';
   }
@@ -539,7 +551,7 @@ function parseRouteHash() {
 }
 
 function updateRoute(mode, replace = false) {
-  const routeHash = mode === 'schoolAdmin' ? 'school-admin' : mode === 'schoolAdminScoreTables' ? 'school-admin-score-tables' : mode;
+  const routeHash = mode === 'schoolAdmin' ? 'school-admin' : mode === 'schoolAdminScoreTables' ? 'school-admin-score-tables' : mode === 'adminSecurity' ? 'admin-security' : mode;
   const targetHash = mode === 'home' ? '' : `#${routeHash}`;
   const url = new URL(window.location.href);
 
@@ -1511,6 +1523,7 @@ function syncMemberControls() {
   const isSchoolAdmin = Boolean(authUser?.isSchoolAdmin);
   adminNavButton.textContent = 'אזור ניהול';
   adminNavButton.classList.toggle('is-hidden', !isAdmin);
+  adminSecurityNavButton?.classList.toggle('is-hidden', !isAdmin);
   memberProfileButton.classList.toggle('is-hidden', !authUser);
   memberLogoutButton.classList.toggle('is-hidden', !authUser);
   teacherSchoolAdminSwitchButton?.classList.toggle('is-hidden', !isSchoolAdmin);
@@ -1603,6 +1616,7 @@ function setEntryMode(mode) {
   const showLogin = mode === 'member' && !authUser;
   const showSignup = mode === 'signup';
   const showAdmin = mode === 'admin' || (mode === 'member' && authUser?.role === 'admin');
+  const showAdminSecurity = mode === 'adminSecurity' && authUser?.role === 'admin';
   const showSchoolAdmin = mode === 'schoolAdmin' && authUser?.isSchoolAdmin;
   const showSchoolAdminScoreTables = mode === 'schoolAdminScoreTables' && authUser?.isSchoolAdmin;
   const showTeacherShell = memberMode && authUser?.role === 'teacher' && !showSchoolAdmin;
@@ -1610,12 +1624,13 @@ function setEntryMode(mode) {
   memberLoginView.classList.toggle('is-hidden', !showLogin);
   memberSignupView.classList.toggle('is-hidden', !showSignup);
   adminView.classList.toggle('is-hidden', !showAdmin);
+  adminSecurityView?.classList.toggle('is-hidden', !showAdminSecurity);
   schoolAdminView?.classList.toggle('is-hidden', !showSchoolAdmin);
   schoolAdminScoreTablesView?.classList.toggle('is-hidden', !showSchoolAdminScoreTables);
-  appShell.classList.toggle('is-hidden', mode === 'home' || Boolean(staticViews[mode]) || showLogin || showSignup || showAdmin || showSchoolAdmin || showSchoolAdminScoreTables || (!showTeacherShell && memberMode));
+  appShell.classList.toggle('is-hidden', mode === 'home' || Boolean(staticViews[mode]) || showLogin || showSignup || showAdmin || showAdminSecurity || showSchoolAdmin || showSchoolAdminScoreTables || (!showTeacherShell && memberMode));
   topControls.classList.toggle('is-hidden', memberMode);
   Object.entries(staticViews).forEach(([key, view]) => {
-    if (key === 'login' || key === 'admin' || key === 'schoolAdmin' || key === 'schoolAdminScoreTables') {
+    if (key === 'login' || key === 'admin' || key === 'adminSecurity' || key === 'schoolAdmin' || key === 'schoolAdminScoreTables') {
       return;
     }
 
@@ -1662,6 +1677,8 @@ function applyRoute(mode, replace = false) {
     renderCurrentView();
   } else if (mode === 'admin' && authUser?.role === 'admin') {
     loadAdminOverview();
+  } else if (mode === 'adminSecurity' && authUser?.role === 'admin') {
+    loadAdminSecurityEvents();
   } else if (mode === 'schoolAdmin' && authUser?.isSchoolAdmin) {
     loadSchoolAdminOverview();
   } else if (mode === 'schoolAdminScoreTables' && authUser?.isSchoolAdmin) {
@@ -3374,11 +3391,56 @@ async function loadAdminAuditLog() {
   renderAdminAuditLogFromFilter();
 }
 
+async function loadAdminSecurityEvents() {
+  if (!adminSecurityEvents) return;
+  const response = await fetch('/api/admin/security-events');
+  if (!response.ok) {
+    adminSecurityEvents.innerHTML = '<p>לא ניתן לטעון אירועי אבטחה.</p>';
+    return;
+  }
+  const data = await response.json();
+  renderSecurityEvents(data.entries || []);
+}
+
+function renderSecurityEvents(entries) {
+  const actionLabels = {
+    admin_login_failed: 'כניסת מנהל נכשלה',
+    admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
+    admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
+    admin_2fa_enabled: 'אימות דו-שלבי הופעל',
+    admin_2fa_disabled: 'אימות דו-שלבי כובה',
+    password_change: 'שינוי סיסמה',
+    reset_password: 'איפוס סיסמה',
+    reset_password_failed: 'איפוס סיסמה נכשל',
+    restore_backup: 'ייבוא גיבוי',
+    restore_backup_failed: 'ייבוא גיבוי נכשל',
+    permanent_delete_user: 'מחיקת משתמש',
+    permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
+    logout_other_sessions: 'ניתוק מכשירים אחרים',
+  };
+  adminSecurityEvents.innerHTML = entries.length ? `
+    <table class="admin-audit-table">
+      <thead><tr><th>תאריך</th><th>פעולה</th><th>משתמש</th><th>IP</th><th>סיבה</th><th>דפדפן</th></tr></thead>
+      <tbody>${entries.map((entry) => `
+        <tr>
+          <td>${formatAdminDateTime(entry.createdAt)}</td>
+          <td>${escapeHtml(actionLabels[entry.action] || entry.action)}</td>
+          <td>${escapeHtml(entry.targetName || entry.targetEmail || entry.adminName || entry.adminEmail || '-')}</td>
+          <td>${escapeHtml(entry.details?.ip || '')}</td>
+          <td>${escapeHtml(entry.details?.reason || entry.details?.email || '')}</td>
+          <td>${escapeHtml(entry.details?.userAgent || '')}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<p>אין אירועי אבטחה להצגה.</p>';
+}
+
 function renderAdminAuditLogFromFilter() {
   const actionLabels = {
     enable_user: 'הפעלת משתמש',
     disable_user: 'השבתת משתמש',
     restore_user: 'שחזור משתמש',
+    admin_login_failed: 'כניסת מנהל נכשלה',
     admin_login: 'כניסת מנהל',
     password_change: 'שינוי סיסמה',
     account_deactivate: 'השבתת חשבון עצמי',
@@ -3398,6 +3460,7 @@ function renderAdminAuditLogFromFilter() {
     admin_2fa_login_success: 'כניסה עם אימות דו-שלבי',
     admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
+    logout_other_sessions: 'ניתוק מכשירים אחרים',
     school_score_table_create: 'יצירת טבלת ציונים',
     school_score_table_create_failed: 'יצירת טבלה נכשלה',
     school_score_table_import: 'ייבוא טבלאות ציונים',
@@ -3724,6 +3787,15 @@ async function confirmAdminStatusChange() {
 
 window.openAdminStatusModal = openAdminStatusModal;
 
+function passwordPolicyMessage() {
+  return 'הסיסמה חייבת לכלול לפחות 8 תווים, אות קטנה באנגלית, אות גדולה באנגלית, מספר ותו מיוחד.';
+}
+
+function validPasswordPolicy(password) {
+  const value = String(password || '');
+  return value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
+}
+
 function openAdminPasswordModal(button) {
   pendingAdminPasswordReset = {
     userId: Number(button.dataset.resetPasswordUserId),
@@ -3761,8 +3833,8 @@ async function submitAdminPasswordReset(event) {
     return;
   }
 
-  if (String(payload.newPassword || '').length < 6) {
-    adminPasswordError.textContent = 'הסיסמה חייבת לכלול לפחות 6 תווים.';
+  if (!validPasswordPolicy(payload.newPassword)) {
+    adminPasswordError.textContent = passwordPolicyMessage();
     return;
   }
 
@@ -3787,8 +3859,8 @@ async function submitAdminPasswordReset(event) {
     const data = await response.json().catch(() => ({}));
     adminPasswordError.textContent = data.error === 'INVALID_ADMIN_PASSWORD'
       ? 'סיסמת המנהל אינה נכונה.'
-      : data.error === 'INVALID_PASSWORD'
-        ? 'הסיסמה החדשה חייבת לכלול לפחות 6 תווים.'
+      : data.error === 'INVALID_PASSWORD' || data.error === 'WEAK_PASSWORD'
+        ? passwordPolicyMessage()
         : 'לא ניתן לאפס סיסמה כרגע.';
     return;
   }
@@ -3927,6 +3999,11 @@ async function handleMemberSignup(event) {
     return;
   }
 
+  if (!validPasswordPolicy(payload.password)) {
+    memberSignupError.textContent = passwordPolicyMessage();
+    return;
+  }
+
   if (payload.accountType === 'school_admin' && (!payload.schoolName || !payload.schoolCity)) {
     memberSignupError.textContent = 'יש להזין שם בית ספר ועיר בית ספר.';
     return;
@@ -3960,6 +4037,11 @@ async function handleMemberSignup(event) {
 
     if (errorData.error === 'PASSWORD_MISMATCH') {
       memberSignupError.textContent = 'הסיסמאות אינן זהות.';
+      return;
+    }
+
+    if (errorData.error === 'WEAK_PASSWORD') {
+      memberSignupError.textContent = passwordPolicyMessage();
       return;
     }
 
@@ -4043,6 +4125,11 @@ async function handleResetPassword(event) {
     return;
   }
 
+  if (!validPasswordPolicy(payload.newPassword)) {
+    resetPasswordMessage.textContent = passwordPolicyMessage();
+    return;
+  }
+
   const response = await fetch('/api/auth/reset-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4050,7 +4137,8 @@ async function handleResetPassword(event) {
   });
 
   if (!response.ok) {
-    resetPasswordMessage.textContent = 'קישור האיפוס אינו תקין או שפג תוקפו.';
+    const data = await response.json().catch(() => ({}));
+    resetPasswordMessage.textContent = data.error === 'WEAK_PASSWORD' ? passwordPolicyMessage() : 'קישור האיפוס אינו תקין או שפג תוקפו.';
     return;
   }
 
@@ -4136,10 +4224,51 @@ function fillProfileForm() {
   if (isAdmin) {
     loadAdminTwoFactorStatus();
   }
+  loadProfileSessions();
   loadSchoolsForSignup().then(renderProfileSchoolRequestOptions);
   if (authUser.mustChangePassword) {
     profilePasswordMessage.textContent = 'יש להחליף סיסמה לפני המשך שימוש במערכת.';
   }
+}
+
+function formatSessionDevice(userAgent) {
+  const text = String(userAgent || '');
+  if (/Edg\//.test(text)) return 'Microsoft Edge';
+  if (/Chrome\//.test(text)) return 'Chrome';
+  if (/Firefox\//.test(text)) return 'Firefox';
+  if (/Safari\//.test(text)) return 'Safari';
+  return text ? text.slice(0, 80) : 'מכשיר לא ידוע';
+}
+
+async function loadProfileSessions() {
+  if (!profileSessionsList) return;
+  const response = await fetch('/api/auth/sessions');
+  if (!response.ok) {
+    profileSessionsList.innerHTML = '<p>לא ניתן לטעון פעילות התחברות.</p>';
+    return;
+  }
+  const data = await response.json();
+  profileSessionsList.innerHTML = (data.sessions || []).map((session) => `
+    <article class="admin-inactive-user-card">
+      <strong>${session.current ? 'המכשיר הנוכחי' : 'מכשיר נוסף'}</strong>
+      <div>${escapeHtml(formatSessionDevice(session.userAgent))}</div>
+      <div>IP: ${escapeHtml(session.ipAddress || '-')}</div>
+      <div>פעילות אחרונה: ${formatAdminDateTime(session.lastSeenAt)}</div>
+      <div>תפוגה: ${formatAdminDateTime(session.expiresAt)}</div>
+    </article>
+  `).join('') || '<p>אין פעילות התחברות להצגה.</p>';
+}
+
+async function logoutOtherSessions() {
+  profileSessionsMessage.textContent = '';
+  const response = await apiFetch('/api/auth/sessions/logout-others', { method: 'POST' });
+  if (!response.ok) {
+    profileSessionsMessage.textContent = 'לא ניתן לנתק מכשירים אחרים כרגע.';
+    return;
+  }
+  const data = await response.json();
+  profileSessionsMessage.textContent = data.deleted ? `נותקו ${data.deleted} מכשירים אחרים.` : 'אין מכשירים אחרים לניתוק.';
+  await loadProfileSessions();
 }
 
 function renderProfileSchoolRequestOptions() {
@@ -4245,6 +4374,11 @@ async function changeProfilePassword(event) {
     return;
   }
 
+  if (!validPasswordPolicy(payload.newPassword)) {
+    profilePasswordMessage.textContent = passwordPolicyMessage();
+    return;
+  }
+
   const response = await apiFetch('/api/auth/password', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -4255,6 +4389,8 @@ async function changeProfilePassword(event) {
     const errorData = await response.json().catch(() => ({}));
     profilePasswordMessage.textContent = errorData.error === 'INVALID_PASSWORD'
       ? 'הסיסמה הנוכחית שגויה.'
+      : errorData.error === 'WEAK_PASSWORD'
+        ? passwordPolicyMessage()
       : 'לא ניתן לשנות סיסמה כרגע.';
     return;
   }
@@ -6390,6 +6526,8 @@ async function init() {
     });
   }
   if (memberProfileButton) { memberProfileButton.addEventListener('click', () => applyRoute('profile')); }
+  if (adminSecurityNavButton) { adminSecurityNavButton.addEventListener('click', () => applyRoute('adminSecurity')); }
+  if (adminSecurityBackButton) { adminSecurityBackButton.addEventListener('click', () => applyRoute('admin')); }
   if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {
     profileDetailsForm.addEventListener('submit', saveProfileDetails);
@@ -6398,6 +6536,7 @@ async function init() {
     });
   }
   if (profileSchoolRequestButton) { profileSchoolRequestButton.addEventListener('click', requestAdditionalSchool); }
+  if (profileLogoutOtherSessionsButton) { profileLogoutOtherSessionsButton.addEventListener('click', logoutOtherSessions); }
   if (profilePasswordForm) {
     profilePasswordForm.addEventListener('submit', changeProfilePassword);
     profilePasswordForm.querySelectorAll('input[type="password"]').forEach((input) => {
