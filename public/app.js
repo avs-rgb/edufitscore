@@ -3421,16 +3421,19 @@ function renderSecurityEvents(entries) {
   adminSecurityEvents.innerHTML = entries.length ? `
     <table class="admin-audit-table">
       <thead><tr><th>תאריך</th><th>פעולה</th><th>משתמש</th><th>IP</th><th>סיבה</th><th>דפדפן</th></tr></thead>
-      <tbody>${entries.map((entry) => `
+      <tbody>${entries.map((entry) => {
+        const userAgent = entry.details?.userAgent || '';
+        return `
         <tr>
           <td>${formatAdminDateTime(entry.createdAt)}</td>
           <td>${escapeHtml(actionLabels[entry.action] || entry.action)}</td>
           <td>${escapeHtml(entry.targetName || entry.targetEmail || entry.adminName || entry.adminEmail || '-')}</td>
           <td>${escapeHtml(entry.details?.ip || '')}</td>
           <td>${escapeHtml(entry.details?.reason || entry.details?.email || '')}</td>
-          <td>${escapeHtml(entry.details?.userAgent || '')}</td>
+          <td title="${escapeHtml(userAgent)}">${escapeHtml(formatSessionDevice(userAgent))}</td>
         </tr>
-      `).join('')}</tbody>
+      `;
+      }).join('')}</tbody>
     </table>
   ` : '<p>אין אירועי אבטחה להצגה.</p>';
 }
