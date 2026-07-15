@@ -959,11 +959,14 @@ p {
 }
 
 .admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border-bottom: 2px solid #ead8ca;
 }
 
 .admin-tab-button {
-  min-width: 180px;
+  width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 12px 18px;
   border: 2px solid #d2a27f;
