@@ -73,6 +73,7 @@
             <button type="submit" class="home-action-button login-submit-button">כניסה</button>
           </form>
           <button id="forgot-password-button" type="button" class="back-home-button signup-link-button">שכחתי סיסמה</button>
+          <button id="resend-verification-button" type="button" class="back-home-button signup-link-button">שליחת קישור אימות מחדש</button>
           <button id="member-signup-button" type="button" class="secondary-button teacher-panel-button signup-link-button">הרשמה</button>
           <div id="member-login-error" class="login-error" role="alert" aria-live="polite"></div>
         </div>
@@ -135,6 +136,17 @@
             </div>
           </form>
           <div id="reset-password-message" class="login-error" role="alert" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="verify-email-view" class="home-view is-hidden">
+        <div class="home-card panel member-login-card">
+          <h2>אימות דוא"ל</h2>
+          <p class="home-subtitle">בודקים את קישור האימות. לאחר אימות הדוא"ל ניתן להתחבר לחשבון.</p>
+          <div id="verify-email-message" class="login-error" role="status" aria-live="polite">מאמתים את כתובת הדוא"ל...</div>
+          <div class="teacher-entry-actions signup-actions">
+            <button id="verify-email-login" type="button" class="home-action-button login-submit-button">מעבר לכניסה</button>
+          </div>
         </div>
       </section>
 

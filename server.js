@@ -36,6 +36,10 @@ const {
   restoreUserByEmail,
   setUserActive,
   adminResetUserPassword,
+  createEmailVerificationToken,
+  createEmailVerificationTokenByEmail,
+  verifyEmailWithToken,
+  deleteUnverifiedUser,
   createPasswordResetToken,
   resetPasswordWithToken,
   getAdminTwoFactorState,
@@ -92,6 +96,7 @@ function createJsonRateLimit(options) {
 const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
 const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const emailVerificationRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const teacherClassImportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
@@ -423,6 +428,30 @@ function maskEmail(email) {
   return `${name.slice(0, 2)}***@${domain}`;
 }
 
+async function sendEmailVerificationMessage(verification) {
+  if (!verification) {
+    return false;
+  }
+
+  const verifyUrl = `${publicBaseUrl}/?verifyToken=${encodeURIComponent(verification.token)}#verify-email`;
+  return sendMail({
+    to: verification.user.email,
+    subject: 'אימות כתובת דוא"ל ל-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'נוצר חשבון EduFitScore עם כתובת הדוא"ל הזו.',
+      'כדי להשלים את ההרשמה ולאפשר התחברות, יש לפתוח את הקישור הבא:',
+      verifyUrl,
+      '',
+      'הקישור תקף למשך 24 שעות וניתן להשתמש בו פעם אחת בלבד.',
+      'אם לא נרשמת לאתר, אפשר להתעלם מהודעה זו.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
@@ -523,7 +552,17 @@ app.get('/api/schools/:schoolId/score-tables', async (request, response) => {
 
 app.post('/api/auth/login', authRateLimit, async (request, response) => {
   const { email, password } = request.body || {};
-  const user = await verifyUser(email, password);
+  let user;
+
+  try {
+    user = await verifyUser(email, password);
+  } catch (error) {
+    if (error.message === 'EMAIL_NOT_VERIFIED') {
+      response.status(403).json({ error: 'EMAIL_NOT_VERIFIED' });
+      return;
+    }
+    throw error;
+  }
 
   if (!user) {
     try {
@@ -653,9 +692,16 @@ app.post('/api/auth/signup', signupRateLimit, async (request, response) => {
 
   try {
     const user = await createUser({ firstName, lastName, email, phone, city, schoolName, schoolCity, schoolId, inviteToken, accountType, password });
-    const session = await createSession(user.id, sessionRequestDetails(request));
-    setAuthCookies(response, session);
-    response.status(201).json({ user, csrfToken: session.csrfToken });
+    const verification = await createEmailVerificationToken(user.id);
+    try {
+      await sendEmailVerificationMessage(verification);
+    } catch (error) {
+      await deleteUnverifiedUser(user.id);
+      console.error('Signup verification email failed:', error.message || 'MAIL_ERROR');
+      response.status(500).json({ error: 'EMAIL_SEND_FAILED' });
+      return;
+    }
+    response.status(201).json({ ok: true, requiresEmailVerification: true, email: user.email });
   } catch (error) {
     if (error.message === 'EMAIL_EXISTS') {
       response.status(409).json({ error: 'EMAIL_EXISTS' });
@@ -684,6 +730,30 @@ app.post('/api/auth/signup', signupRateLimit, async (request, response) => {
 
     response.status(500).json({ error: 'SIGNUP_FAILED' });
   }
+});
+
+app.post('/api/auth/verify-email', emailVerificationRateLimit, async (request, response) => {
+  try {
+    await verifyEmailWithToken(request.body?.token);
+    response.json({ ok: true });
+  } catch {
+    response.status(400).json({ error: 'INVALID_VERIFICATION' });
+  }
+});
+
+app.post('/api/auth/resend-verification', emailVerificationRateLimit, async (request, response) => {
+  const email = String(request.body?.email || '').trim().toLowerCase();
+
+  try {
+    const verification = await createEmailVerificationTokenByEmail(email);
+    if (verification) {
+      await sendEmailVerificationMessage(verification);
+    }
+  } catch (error) {
+    console.error('Resend verification failed:', error.message || 'MAIL_ERROR');
+  }
+
+  response.json({ ok: true });
 });
 
 app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, response) => {

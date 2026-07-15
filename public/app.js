@@ -45,6 +45,7 @@ const memberTwoFactorSubtitle = document.querySelector('#member-2fa-subtitle');
 const memberTwoFactorCancelButton = document.querySelector('#member-2fa-cancel');
 const memberTwoFactorError = document.querySelector('#member-2fa-error');
 const forgotPasswordButton = document.querySelector('#forgot-password-button');
+const resendVerificationButton = document.querySelector('#resend-verification-button');
 const forgotPasswordView = document.querySelector('#forgot-password-view');
 const forgotPasswordForm = document.querySelector('#forgot-password-form');
 const forgotPasswordBackButton = document.querySelector('#forgot-password-back');
@@ -53,6 +54,9 @@ const resetPasswordView = document.querySelector('#reset-password-view');
 const resetPasswordForm = document.querySelector('#reset-password-form');
 const resetPasswordBackButton = document.querySelector('#reset-password-back');
 const resetPasswordMessage = document.querySelector('#reset-password-message');
+const verifyEmailView = document.querySelector('#verify-email-view');
+const verifyEmailMessage = document.querySelector('#verify-email-message');
+const verifyEmailLoginButton = document.querySelector('#verify-email-login');
 const memberSignupView = document.querySelector('#member-signup-view');
 const memberSignupButton = document.querySelector('#member-signup-button');
 const memberSignupForm = document.querySelector('#member-signup-form');
@@ -475,6 +479,7 @@ const staticViews = {
   twoFactor: memberTwoFactorView,
   forgotPassword: forgotPasswordView,
   resetPassword: resetPasswordView,
+  verifyEmail: verifyEmailView,
   signup: memberSignupView,
   admin: adminView,
   adminSecurity: adminSecurityView,
@@ -504,6 +509,10 @@ function parseRouteHash() {
 
   if (hash.startsWith('reset-password')) {
     return 'resetPassword';
+  }
+
+  if (hash.startsWith('verify-email')) {
+    return 'verifyEmail';
   }
 
   if (hash === 'profile') {
@@ -560,6 +569,9 @@ function updateRoute(mode, replace = false) {
 
   if (mode !== 'resetPassword') {
     url.searchParams.delete('resetToken');
+  }
+  if (mode !== 'verifyEmail') {
+    url.searchParams.delete('verifyToken');
   }
 
   const nextUrl = `${url.pathname}${url.search}${targetHash}`;
@@ -1632,6 +1644,7 @@ function setEntryMode(mode) {
 
   memberLoginView.classList.toggle('is-hidden', !showLogin);
   memberSignupView.classList.toggle('is-hidden', !showSignup);
+  verifyEmailView?.classList.toggle('is-hidden', mode !== 'verifyEmail');
   adminView.classList.toggle('is-hidden', !showAdmin);
   adminSecurityView?.classList.toggle('is-hidden', !showAdminSecurity);
   adminNavButton?.classList.toggle('is-active', showAdmin);
@@ -1705,6 +1718,8 @@ function applyRoute(mode, replace = false) {
   } else if (mode === 'profile') {
     applyRoute('member', true);
     return;
+  } else if (mode === 'verifyEmail') {
+    verifyEmailFromRoute();
   }
 
   updateRoute(mode, replace);
@@ -3939,7 +3954,10 @@ async function handleMemberLogin(event) {
   });
 
   if (!response.ok) {
-    memberLoginError.textContent = 'הדוא"ל או הסיסמה שגויים.';
+    const errorData = await response.json().catch(() => ({}));
+    memberLoginError.textContent = errorData.error === 'EMAIL_NOT_VERIFIED'
+      ? 'יש לאמת את כתובת הדוא"ל לפני התחברות. בדקו את תיבת הדואר או בקשו קישור אימות חדש.'
+      : 'הדוא"ל או הסיסמה שגויים.';
     return;
   }
 
@@ -4066,6 +4084,11 @@ async function handleMemberSignup(event) {
       return;
     }
 
+    if (errorData.error === 'EMAIL_SEND_FAILED') {
+      memberSignupError.textContent = 'לא ניתן לשלוח כרגע דוא"ל אימות. נסו שוב בעוד כמה דקות.';
+      return;
+    }
+
     if (errorData.error === 'SCHOOL_ADMIN_EXISTS') {
       memberSignupError.textContent = 'כבר קיים מנהל לבית הספר הזה.';
       return;
@@ -4090,13 +4113,10 @@ async function handleMemberSignup(event) {
     return;
   }
 
-  const data = await response.json();
-  authUser = data.user;
+  await response.json();
   memberSignupForm.reset();
   syncSignupSchoolFields();
-  syncMemberControls();
-  await refreshTeacherClasses();
-  applyRoute('member');
+  memberSignupError.textContent = 'ההרשמה נקלטה. שלחנו קישור אימות לדוא"ל שלך. יש לאמת את הדוא"ל לפני התחברות.';
 }
 
 async function handleForgotPassword(event) {
@@ -4114,6 +4134,23 @@ async function handleForgotPassword(event) {
   forgotPasswordMessage.textContent = 'אם קיים חשבון פעיל עם כתובת זו, נשלחו הוראות איפוס סיסמה.';
 }
 
+async function resendEmailVerification() {
+  memberLoginError.textContent = '';
+  const email = memberLoginForm?.email?.value || '';
+  if (!String(email).includes('@')) {
+    memberLoginError.textContent = 'יש להזין דוא"ל במסך הכניסה כדי לשלוח קישור אימות מחדש.';
+    return;
+  }
+
+  await fetch('/api/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  }).catch(() => null);
+
+  memberLoginError.textContent = 'אם קיים חשבון שעדיין לא אומת, נשלח קישור אימות חדש.';
+}
+
 function currentResetPasswordToken() {
   const tokenFromQuery = new URLSearchParams(window.location.search).get('resetToken');
   if (tokenFromQuery) {
@@ -4128,6 +4165,48 @@ function currentResetPasswordToken() {
   }
 
   return new URLSearchParams(hash.slice(queryIndex + 1)).get('token') || '';
+}
+
+function currentVerifyEmailToken() {
+  const tokenFromQuery = new URLSearchParams(window.location.search).get('verifyToken');
+  if (tokenFromQuery) {
+    return tokenFromQuery;
+  }
+
+  const hash = window.location.hash || '';
+  const queryIndex = hash.indexOf('?');
+
+  if (queryIndex === -1) {
+    return '';
+  }
+
+  return new URLSearchParams(hash.slice(queryIndex + 1)).get('token') || '';
+}
+
+async function verifyEmailFromRoute() {
+  if (!verifyEmailMessage) return;
+  const token = currentVerifyEmailToken();
+  if (!token) {
+    verifyEmailMessage.textContent = 'קישור האימות חסר או לא תקין.';
+    return;
+  }
+
+  verifyEmailMessage.textContent = 'מאמתים את כתובת הדוא"ל...';
+  const response = await fetch('/api/auth/verify-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+
+  if (!response.ok) {
+    verifyEmailMessage.textContent = 'קישור האימות לא תקף או שפג תוקפו. ניתן לבקש קישור חדש ממסך ההתחברות.';
+    return;
+  }
+
+  verifyEmailMessage.textContent = 'הדוא"ל אומת בהצלחה. אפשר להתחבר לחשבון.';
+  const url = new URL(window.location.href);
+  url.searchParams.delete('verifyToken');
+  window.history.replaceState({ mode: 'member' }, '', `${url.pathname}${url.search}#member`);
 }
 
 async function handleResetPassword(event) {
@@ -6512,9 +6591,11 @@ async function init() {
   if (memberSignupButton) { memberSignupButton.addEventListener('click', () => applyRoute('signup')); }
   if (memberSignupBackButton) { memberSignupBackButton.addEventListener('click', () => applyRoute('member')); }
   if (forgotPasswordButton) { forgotPasswordButton.addEventListener('click', () => applyRoute('forgotPassword')); }
+  if (resendVerificationButton) { resendVerificationButton.addEventListener('click', resendEmailVerification); }
   if (forgotPasswordBackButton) { forgotPasswordBackButton.addEventListener('click', () => applyRoute('member')); }
   if (forgotPasswordForm) { forgotPasswordForm.addEventListener('submit', handleForgotPassword); }
   if (resetPasswordBackButton) { resetPasswordBackButton.addEventListener('click', () => applyRoute('member')); }
+  if (verifyEmailLoginButton) { verifyEmailLoginButton.addEventListener('click', () => applyRoute('member')); }
   if (resetPasswordForm) {
     resetPasswordForm.addEventListener('submit', handleResetPassword);
     resetPasswordForm.querySelectorAll('input[type="password"]').forEach((input) => {
