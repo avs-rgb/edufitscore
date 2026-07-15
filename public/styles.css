@@ -1678,6 +1678,21 @@ p {
   margin: 0 0 8px;
 }
 
+#profile-details-form {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#profile-password-form {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#profile-sessions-panel {
+  grid-column: 3;
+  grid-row: 1;
+}
+
 #profile-sessions-panel {
   display: grid;
   gap: 14px;
@@ -3225,6 +3240,13 @@ tbody tr:nth-child(5n + 1) {
 
   #profile-admin-security-panel {
     grid-template-columns: 1fr;
+  }
+
+  #profile-details-form,
+  #profile-password-form,
+  #profile-sessions-panel {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .profile-session-card {
