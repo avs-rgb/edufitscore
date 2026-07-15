@@ -948,7 +948,17 @@ p {
 .admin-users-panel {
   display: grid;
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #ead8ca;
+  border-radius: 22px;
+  background: rgba(255, 250, 245, 0.72);
+}
+
+.admin-users-panel h3 {
+  margin: 0;
+  color: #5a3628;
+  font-size: 1.08rem;
 }
 
 .admin-dashboard-actions {
@@ -956,26 +966,26 @@ p {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .admin-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-bottom: 2px solid #ead8ca;
+  border-bottom: 1px solid #d6b79d;
 }
 
 .admin-tab-button {
   width: 100%;
   min-width: 0;
-  min-height: 48px;
-  padding: 12px 18px;
-  border: 2px solid #d2a27f;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid #d6b79d;
   border-bottom: 0;
-  border-radius: 18px 18px 0 0;
-  background: #fff7ef;
+  border-radius: 16px 16px 0 0;
+  background: rgba(255, 247, 239, 0.78);
   color: #5e4335;
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 900;
   cursor: pointer;
 }
@@ -989,6 +999,7 @@ p {
 .admin-tab-button:not(.is-active):hover,
 .admin-tab-button:not(.is-active):focus-visible {
   background: #f7e7dc;
+  color: #4b2f24;
 }
 
 .admin-compact-actions {
