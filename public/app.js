@@ -6570,7 +6570,7 @@ async function init() {
     profileDeactivatePasswordInput.addEventListener('cut', preventPasswordCopy);
   }
   memberLogoutButton.addEventListener('click', logoutMember);
-  adminLogoutButton.addEventListener('click', logoutMember);
+  adminLogoutButton?.addEventListener('click', logoutMember);
   if (adminRestoreUserForm) { adminRestoreUserForm.addEventListener('submit', handleAdminRestoreUser); }
   if (adminTwoFactorStartForm) { adminTwoFactorStartForm.addEventListener('submit', startAdminTwoFactorSetup); }
   if (adminTwoFactorVerifyForm) { adminTwoFactorVerifyForm.addEventListener('submit', verifyAdminTwoFactorSetup); }

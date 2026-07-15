@@ -271,10 +271,6 @@ textarea {
   order: 3;
 }
 
-#admin-nav-button {
-  order: 4;
-}
-
 #privacy-button {
   order: 5;
 }
@@ -972,6 +968,13 @@ p {
   margin-top: 6px;
   color: #6f5344;
   font-weight: 700;
+}
+
+.admin-dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .admin-compact-actions {
