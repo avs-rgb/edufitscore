@@ -953,9 +953,38 @@ p {
 .admin-dashboard-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 18px;
+}
+
+.admin-tabs {
+  border-bottom: 2px solid #ead8ca;
+}
+
+.admin-tab-button {
+  min-width: 180px;
+  min-height: 48px;
+  padding: 12px 18px;
+  border: 2px solid #d2a27f;
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
+  background: #fff7ef;
+  color: #5e4335;
+  font-size: 1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-tab-button.is-active {
+  background: #c96f4d;
+  color: #ffffff;
+  border-color: #c96f4d;
+}
+
+.admin-tab-button:not(.is-active):hover,
+.admin-tab-button:not(.is-active):focus-visible {
+  background: #f7e7dc;
 }
 
 .admin-compact-actions {

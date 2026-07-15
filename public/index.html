@@ -307,9 +307,9 @@
             <h2>אזור ניהול</h2>
           </div>
           <div class="privacy-content">
-            <div class="admin-dashboard-actions">
-              <button id="admin-nav-button" type="button" class="teacher-panel-button admin-compact-button is-hidden">אזור ניהול</button>
-              <button id="admin-security-nav-button" type="button" class="teacher-panel-button admin-compact-button is-hidden">פתיחת אבטחה</button>
+            <div class="admin-dashboard-actions admin-tabs" role="tablist" aria-label="ניווט ניהול">
+              <button id="admin-nav-button" type="button" class="admin-tab-button is-hidden" role="tab">אזור ניהול</button>
+              <button id="admin-security-nav-button" type="button" class="admin-tab-button is-hidden" role="tab">אבטחה</button>
             </div>
             <section class="admin-users-panel">
               <h3>אבחון מערכת</h3>
@@ -361,9 +361,12 @@
         <div class="privacy-card panel">
           <div class="privacy-header">
             <h2>אבטחה</h2>
-            <button id="admin-security-back" type="button" class="back-home-button">חזרה לניהול</button>
           </div>
           <div class="privacy-content">
+            <div class="admin-dashboard-actions admin-tabs" role="tablist" aria-label="ניווט ניהול">
+              <button id="admin-security-admin-tab" type="button" class="admin-tab-button is-hidden" role="tab">אזור ניהול</button>
+              <button id="admin-security-current-tab" type="button" class="admin-tab-button is-hidden" role="tab">אבטחה</button>
+            </div>
             <div id="admin-security-events" class="admin-audit-log admin-security-events-container"></div>
           </div>
         </div>

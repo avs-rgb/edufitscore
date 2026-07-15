@@ -19,6 +19,8 @@ const topHomeButton = document.querySelector('#top-home-button');
 const topUserLabel = document.querySelector('#top-user-label');
 const adminNavButton = document.querySelector('#admin-nav-button');
 const adminSecurityNavButton = document.querySelector('#admin-security-nav-button');
+const adminSecurityAdminTab = document.querySelector('#admin-security-admin-tab');
+const adminSecurityCurrentTab = document.querySelector('#admin-security-current-tab');
 const memberProfileButton = document.querySelector('#member-profile-button');
 const memberLogoutButton = document.querySelector('#member-logout-button');
 const heroHomeButton = document.querySelector('#hero-home-button');
@@ -1529,6 +1531,8 @@ function syncMemberControls() {
   }
   adminNavButton.classList.toggle('is-hidden', !isAdmin);
   adminSecurityNavButton?.classList.toggle('is-hidden', !isAdmin);
+  adminSecurityAdminTab?.classList.toggle('is-hidden', !isAdmin);
+  adminSecurityCurrentTab?.classList.toggle('is-hidden', !isAdmin);
   memberProfileButton.classList.toggle('is-hidden', !authUser);
   memberLogoutButton.classList.toggle('is-hidden', !authUser);
   teacherSchoolAdminSwitchButton?.classList.toggle('is-hidden', !isSchoolAdmin);
@@ -1630,6 +1634,14 @@ function setEntryMode(mode) {
   memberSignupView.classList.toggle('is-hidden', !showSignup);
   adminView.classList.toggle('is-hidden', !showAdmin);
   adminSecurityView?.classList.toggle('is-hidden', !showAdminSecurity);
+  adminNavButton?.classList.toggle('is-active', showAdmin);
+  adminSecurityNavButton?.classList.toggle('is-active', showAdminSecurity);
+  adminSecurityAdminTab?.classList.toggle('is-active', showAdmin);
+  adminSecurityCurrentTab?.classList.toggle('is-active', showAdminSecurity);
+  adminNavButton?.setAttribute('aria-selected', showAdmin ? 'true' : 'false');
+  adminSecurityNavButton?.setAttribute('aria-selected', showAdminSecurity ? 'true' : 'false');
+  adminSecurityAdminTab?.setAttribute('aria-selected', showAdmin ? 'true' : 'false');
+  adminSecurityCurrentTab?.setAttribute('aria-selected', showAdminSecurity ? 'true' : 'false');
   schoolAdminView?.classList.toggle('is-hidden', !showSchoolAdmin);
   schoolAdminScoreTablesView?.classList.toggle('is-hidden', !showSchoolAdminScoreTables);
   appShell.classList.toggle('is-hidden', mode === 'home' || Boolean(staticViews[mode]) || showLogin || showSignup || showAdmin || showAdminSecurity || showSchoolAdmin || showSchoolAdminScoreTables || (!showTeacherShell && memberMode));
@@ -6536,6 +6548,8 @@ async function init() {
   }
   if (memberProfileButton) { memberProfileButton.addEventListener('click', () => applyRoute('profile')); }
   if (adminSecurityNavButton) { adminSecurityNavButton.addEventListener('click', () => applyRoute('adminSecurity')); }
+  if (adminSecurityAdminTab) { adminSecurityAdminTab.addEventListener('click', () => applyRoute('admin')); }
+  if (adminSecurityCurrentTab) { adminSecurityCurrentTab.addEventListener('click', () => applyRoute('adminSecurity')); }
   if (adminSecurityBackButton) { adminSecurityBackButton.addEventListener('click', () => applyRoute('admin')); }
   if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {
