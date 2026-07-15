@@ -4270,12 +4270,12 @@ async function loadProfileSessions() {
   }
   const data = await response.json();
   profileSessionsList.innerHTML = (data.sessions || []).map((session) => `
-    <article class="admin-inactive-user-card">
+    <article class="profile-session-card">
       <strong>${session.current ? 'המכשיר הנוכחי' : 'מכשיר נוסף'}</strong>
-      <div>${escapeHtml(formatSessionDevice(session.userAgent))}</div>
-      <div>IP: ${escapeHtml(session.ipAddress || '-')}</div>
-      <div>פעילות אחרונה: ${formatAdminDateTime(session.lastSeenAt)}</div>
-      <div>תפוגה: ${formatAdminDateTime(session.expiresAt)}</div>
+      <div><span>דפדפן</span><b>${escapeHtml(formatSessionDevice(session.userAgent))}</b></div>
+      <div><span>IP</span><b>${escapeHtml(session.ipAddress || '-')}</b></div>
+      <div><span>פעילות אחרונה</span><b>${formatAdminDateTime(session.lastSeenAt)}</b></div>
+      <div><span>תפוגה</span><b>${formatAdminDateTime(session.expiresAt)}</b></div>
     </article>
   `).join('') || '<p>אין פעילות התחברות להצגה.</p>';
 }

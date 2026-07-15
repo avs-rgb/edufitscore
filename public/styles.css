@@ -945,13 +945,13 @@ p {
   border: 1px solid #ead8ca;
 }
 
-.admin-users-panel {
+#admin-view .admin-users-panel {
   display: grid;
   gap: 14px;
   margin-top: 26px;
 }
 
-.admin-users-panel h3 {
+#admin-view .admin-users-panel h3 {
   margin: 0;
   color: #5a3628;
   font-size: 1.08rem;
@@ -1676,6 +1676,56 @@ p {
 
 .profile-form h3 {
   margin: 0 0 8px;
+}
+
+#profile-sessions-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+#profile-sessions-list {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-session-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  padding: 14px;
+  border: 1px solid #ead8ca;
+  border-radius: 16px;
+  background: #fffdf9;
+  color: #5e4335;
+}
+
+.profile-session-card strong {
+  grid-column: 1 / -1;
+  color: #4b2f24;
+}
+
+.profile-session-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.profile-session-card span {
+  color: #7a6256;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.profile-session-card b {
+  direction: ltr;
+  text-align: right;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+#profile-logout-other-sessions {
+  width: 100%;
 }
 
 #profile-admin-security-panel {
@@ -3174,6 +3224,10 @@ tbody tr:nth-child(5n + 1) {
   }
 
   #profile-admin-security-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-session-card {
     grid-template-columns: 1fr;
   }
 
