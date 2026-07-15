@@ -948,17 +948,15 @@ p {
 .admin-users-panel {
   display: grid;
   gap: 14px;
-  margin-top: 22px;
-  padding: 18px;
-  border: 1px solid #ead8ca;
-  border-radius: 22px;
-  background: rgba(255, 250, 245, 0.72);
+  margin-top: 26px;
 }
 
 .admin-users-panel h3 {
   margin: 0;
   color: #5a3628;
   font-size: 1.08rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ead8ca;
 }
 
 .admin-dashboard-actions {
@@ -972,14 +970,16 @@ p {
 .admin-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(360px, 100%);
+  justify-self: end;
   border-bottom: 1px solid #d6b79d;
 }
 
 .admin-tab-button {
   width: 100%;
   min-width: 0;
-  min-height: 42px;
-  padding: 10px 16px;
+  min-height: 38px;
+  padding: 8px 14px;
   border: 1px solid #d6b79d;
   border-bottom: 0;
   border-radius: 16px 16px 0 0;
