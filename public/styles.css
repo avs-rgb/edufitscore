@@ -241,6 +241,7 @@ textarea {
   flex-wrap: wrap;
   justify-content: flex-end;
   direction: rtl;
+  margin-left: auto;
 }
 
 .top-user-label {
