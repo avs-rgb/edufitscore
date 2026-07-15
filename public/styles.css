@@ -950,31 +950,12 @@ p {
   margin-top: 18px;
 }
 
-.admin-security-shortcut {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  padding: 16px;
-  border: 1px solid #ead8ca;
-  border-radius: 18px;
-  background: #fffaf5;
-}
-
-.admin-security-shortcut h3,
-.admin-security-shortcut p {
-  margin: 0;
-}
-
-.admin-security-shortcut p {
-  margin-top: 6px;
-  color: #6f5344;
-  font-weight: 700;
-}
-
 .admin-dashboard-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 18px;
 }
 
 .admin-compact-actions {
