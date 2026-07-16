@@ -5128,7 +5128,7 @@ function buildGraphShareSnapshot() {
 }
 
 async function graphShareUrl() {
-  const response = await fetch('/api/graph-snapshots', {
+  const response = await apiFetch('/api/graph-snapshots', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ snapshot: buildGraphShareSnapshot() }),
@@ -5199,6 +5199,8 @@ function downloadHistoryGraphImage() {
   }
 
   const svgClone = svg.cloneNode(true);
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   style.textContent = `
     .history-graph-grid { stroke: #c99c78; stroke-width: 1.4; }
@@ -5242,13 +5244,17 @@ function downloadHistoryGraphImage() {
       context.fillText(student.name, x - 18, y);
     });
     URL.revokeObjectURL(url);
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = `history-graph-${currentTeacherClass()?.name || 'class'}.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setHistoryGraphMessage('התמונה הורדה.');
+    try {
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `history-graph-${currentTeacherClass()?.name || 'class'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setHistoryGraphMessage('התמונה הורדה.');
+    } catch (error) {
+      setHistoryGraphMessage('לא ניתן להוריד תמונה כרגע.', true);
+    }
   };
 
   image.onerror = () => {
