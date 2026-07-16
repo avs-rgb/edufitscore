@@ -45,7 +45,6 @@ const memberTwoFactorSubtitle = document.querySelector('#member-2fa-subtitle');
 const memberTwoFactorCancelButton = document.querySelector('#member-2fa-cancel');
 const memberTwoFactorError = document.querySelector('#member-2fa-error');
 const forgotPasswordButton = document.querySelector('#forgot-password-button');
-const resendVerificationButton = document.querySelector('#resend-verification-button');
 const forgotPasswordView = document.querySelector('#forgot-password-view');
 const forgotPasswordForm = document.querySelector('#forgot-password-form');
 const forgotPasswordBackButton = document.querySelector('#forgot-password-back');
@@ -3956,7 +3955,7 @@ async function handleMemberLogin(event) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     memberLoginError.textContent = errorData.error === 'EMAIL_NOT_VERIFIED'
-      ? 'יש לאמת את כתובת הדוא"ל לפני התחברות. בדקו את תיבת הדואר או בקשו קישור אימות חדש.'
+      ? 'יש לאמת את כתובת הדוא"ל לפני התחברות. בדקו את תיבת הדואר שקיבלתם לאחר ההרשמה.'
       : 'הדוא"ל או הסיסמה שגויים.';
     return;
   }
@@ -4132,23 +4131,6 @@ async function handleForgotPassword(event) {
 
   forgotPasswordForm.reset();
   forgotPasswordMessage.textContent = 'אם קיים חשבון פעיל עם כתובת זו, נשלחו הוראות איפוס סיסמה.';
-}
-
-async function resendEmailVerification() {
-  memberLoginError.textContent = '';
-  const email = memberLoginForm?.email?.value || '';
-  if (!String(email).includes('@')) {
-    memberLoginError.textContent = 'יש להזין דוא"ל במסך הכניסה כדי לשלוח קישור אימות מחדש.';
-    return;
-  }
-
-  await fetch('/api/auth/resend-verification', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  }).catch(() => null);
-
-  memberLoginError.textContent = 'אם קיים חשבון שעדיין לא אומת, נשלח קישור אימות חדש.';
 }
 
 function currentResetPasswordToken() {
@@ -6591,7 +6573,6 @@ async function init() {
   if (memberSignupButton) { memberSignupButton.addEventListener('click', () => applyRoute('signup')); }
   if (memberSignupBackButton) { memberSignupBackButton.addEventListener('click', () => applyRoute('member')); }
   if (forgotPasswordButton) { forgotPasswordButton.addEventListener('click', () => applyRoute('forgotPassword')); }
-  if (resendVerificationButton) { resendVerificationButton.addEventListener('click', resendEmailVerification); }
   if (forgotPasswordBackButton) { forgotPasswordBackButton.addEventListener('click', () => applyRoute('member')); }
   if (forgotPasswordForm) { forgotPasswordForm.addEventListener('submit', handleForgotPassword); }
   if (resetPasswordBackButton) { resetPasswordBackButton.addEventListener('click', () => applyRoute('member')); }

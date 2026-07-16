@@ -37,7 +37,6 @@ const {
   setUserActive,
   adminResetUserPassword,
   createEmailVerificationToken,
-  createEmailVerificationTokenByEmail,
   verifyEmailWithToken,
   deleteUnverifiedUser,
   createPasswordResetToken,
@@ -739,21 +738,6 @@ app.post('/api/auth/verify-email', emailVerificationRateLimit, async (request, r
   } catch {
     response.status(400).json({ error: 'INVALID_VERIFICATION' });
   }
-});
-
-app.post('/api/auth/resend-verification', emailVerificationRateLimit, async (request, response) => {
-  const email = String(request.body?.email || '').trim().toLowerCase();
-
-  try {
-    const verification = await createEmailVerificationTokenByEmail(email);
-    if (verification) {
-      await sendEmailVerificationMessage(verification);
-    }
-  } catch (error) {
-    console.error('Resend verification failed:', error.message || 'MAIL_ERROR');
-  }
-
-  response.json({ ok: true });
 });
 
 app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, response) => {
