@@ -76,6 +76,12 @@ const adminView = document.querySelector('#admin-view');
 const adminSecurityView = document.querySelector('#admin-security-view');
 const adminSecurityBackButton = document.querySelector('#admin-security-back');
 const adminSecurityEvents = document.querySelector('#admin-security-events');
+const adminSecurityExportButton = document.querySelector('#admin-security-export-button');
+const adminSecurityExportModal = document.querySelector('#admin-security-export-modal');
+const adminSecurityExportCloseButton = document.querySelector('#admin-security-export-close');
+const adminSecurityExportCancelButton = document.querySelector('#admin-security-export-cancel');
+const adminSecurityExportForm = document.querySelector('#admin-security-export-form');
+const adminSecurityExportError = document.querySelector('#admin-security-export-error');
 const adminSummary = document.querySelector('#admin-summary');
 const adminLogoutButton = document.querySelector('#admin-logout-button');
 const adminRestoreUserForm = document.querySelector('#admin-restore-user-form');
@@ -3548,6 +3554,8 @@ async function loadAdminSecurityEvents() {
 function renderSecurityEvents(entries) {
   const actionLabels = {
     admin_login_failed: 'כניסת מנהל נכשלה',
+    admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
+    admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
     admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
     admin_2fa_enabled: 'אימות דו-שלבי הופעל',
@@ -3560,6 +3568,10 @@ function renderSecurityEvents(entries) {
     permanent_delete_user: 'מחיקת משתמש',
     permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     logout_other_sessions: 'ניתוק מכשירים אחרים',
+    logout_other_sessions_after_password_change: 'ניתוק מכשירים לאחר שינוי סיסמה',
+    export_security_log: 'ייצוא יומן אבטחה',
+    export_security_log_failed: 'ייצוא יומן אבטחה נכשל',
+    session_idle_timeout: 'ניתוק עקב חוסר פעילות',
   };
   adminSecurityEvents.innerHTML = entries.length ? `
     <table class="admin-audit-table">
@@ -3581,21 +3593,82 @@ function renderSecurityEvents(entries) {
   ` : '<p>אין אירועי אבטחה להצגה.</p>';
 }
 
+function openAdminSecurityExportModal() {
+  adminSecurityExportError.textContent = '';
+  adminSecurityExportForm.reset();
+  adminSecurityExportModal.classList.remove('is-hidden');
+  adminSecurityExportModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminSecurityExportModal() {
+  adminSecurityExportForm.reset();
+  adminSecurityExportError.textContent = '';
+  adminSecurityExportModal.classList.add('is-hidden');
+  adminSecurityExportModal.setAttribute('aria-hidden', 'true');
+}
+
+async function exportAdminSecurityLog(event) {
+  event.preventDefault();
+  adminSecurityExportError.textContent = '';
+  const payload = Object.fromEntries(new FormData(adminSecurityExportForm).entries());
+  const submitButton = event.submitter;
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    const response = await apiFetch('/api/admin/security-events/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      adminSecurityExportError.textContent = response.status === 403
+        ? 'סיסמת המנהל שגויה.'
+        : response.status === 429
+          ? 'יותר מדי ניסיונות. נסו שוב מאוחר יותר.'
+          : 'לא ניתן לייצא יומן אבטחה כרגע.';
+      return;
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] || `edufitscore-security-log-${new Date().toISOString().slice(0, 10)}.${payload.format === 'json' ? 'json' : 'csv'}`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    closeAdminSecurityExportModal();
+    await loadAdminSecurityEvents();
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
 function renderAdminAuditLogFromFilter() {
   const actionLabels = {
     enable_user: 'הפעלת משתמש',
     disable_user: 'השבתת משתמש',
     restore_user: 'שחזור משתמש',
     admin_login_failed: 'כניסת מנהל נכשלה',
+    admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
+    admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
     admin_login: 'כניסת מנהל',
     password_change: 'שינוי סיסמה',
     account_deactivate: 'השבתת חשבון עצמי',
+    logout_other_sessions_after_password_change: 'ניתוק מכשירים לאחר שינוי סיסמה',
     reset_password: 'איפוס סיסמה',
     reset_password_failed: 'איפוס סיסמה נכשל',
     permanent_delete_user: 'מחיקת משתמש',
     permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     export_backup: 'הורדת גיבוי',
     export_backup_notification_failed: 'התראת הורדת גיבוי נכשלה',
+    export_security_log: 'ייצוא יומן אבטחה',
+    export_security_log_failed: 'ייצוא יומן אבטחה נכשל',
+    session_idle_timeout: 'ניתוק עקב חוסר פעילות',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
     admin_2fa_setup_started: 'התחלת אימות דו-שלבי',
@@ -4633,7 +4706,10 @@ async function changeProfilePassword(event) {
 
   profilePasswordForm.reset();
   authUser = { ...authUser, mustChangePassword: false };
-  profilePasswordMessage.textContent = 'הסיסמה שונתה.';
+  const data = await response.json().catch(() => ({}));
+  profilePasswordMessage.textContent = data.revokedOtherSessions
+    ? 'הסיסמה שונתה. מכשירים אחרים נותקו מהחשבון.'
+    : 'הסיסמה שונתה.';
 }
 
 function openDeactivateProfileModal(event) {
@@ -6870,6 +6946,10 @@ async function init() {
   if (adminSecurityAdminTab) { adminSecurityAdminTab.addEventListener('click', () => applyRoute('admin')); }
   if (adminSecurityCurrentTab) { adminSecurityCurrentTab.addEventListener('click', () => applyRoute('adminSecurity')); }
   if (adminSecurityBackButton) { adminSecurityBackButton.addEventListener('click', () => applyRoute('admin')); }
+  if (adminSecurityExportButton) { adminSecurityExportButton.addEventListener('click', openAdminSecurityExportModal); }
+  if (adminSecurityExportForm) { adminSecurityExportForm.addEventListener('submit', exportAdminSecurityLog); }
+  if (adminSecurityExportCancelButton) { adminSecurityExportCancelButton.addEventListener('click', closeAdminSecurityExportModal); }
+  if (adminSecurityExportCloseButton) { adminSecurityExportCloseButton.addEventListener('click', closeAdminSecurityExportModal); }
   if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {
     profileDetailsForm.addEventListener('submit', saveProfileDetails);

@@ -58,6 +58,7 @@ const {
   getGraphSnapshot,
   logAdminAction,
   listAdminAuditLog,
+  countRecentAdminAuditActions,
   exportBackupData,
   restoreBackupData,
   getAdminDiagnostics,
@@ -66,6 +67,7 @@ const {
   findUserBySessionToken,
   listUserSessions,
   deleteOtherUserSessions,
+  touchSession,
   deleteSession,
   listTeacherClasses,
   getTeacherClass,
@@ -83,6 +85,8 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
 const csrfUnsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 30) * 60 * 1000;
+const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 120) * 60 * 1000;
 app.set('trust proxy', 1);
 
 function createJsonRateLimit(options) {
@@ -101,6 +105,7 @@ const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 1
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
 const emailVerificationRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const adminBackupExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const adminSecurityExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const teacherClassImportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
@@ -282,7 +287,29 @@ function clearAuthCookies(response) {
 async function attachUser(request, response, next) {
   try {
     const token = request.cookies?.edufitscore_session;
-    request.authUser = await findUserBySessionToken(token);
+    const user = await findUserBySessionToken(token);
+    if (!user) {
+      request.authUser = null;
+      next();
+      return;
+    }
+
+    const timeoutMs = user.role === 'admin' ? adminIdleTimeoutMs : userIdleTimeoutMs;
+    const lastSeenAt = Date.parse(user.session?.lastSeenAt || user.session?.createdAt || '');
+    if (Number.isFinite(lastSeenAt) && timeoutMs > 0 && Date.now() - lastSeenAt > timeoutMs) {
+      await deleteSession(token);
+      clearAuthCookies(response);
+      if (user.role === 'admin') {
+        await logAdminAction(user.id, user.id, 'session_idle_timeout', auditRequestDetails(request));
+      }
+      request.authUser = null;
+      next();
+      return;
+    }
+
+    await touchSession(token);
+    delete user.session;
+    request.authUser = user;
     next();
   } catch (error) {
     next(error);
@@ -372,6 +399,31 @@ function auditRequestDetails(request, extra = {}) {
     path: request.originalUrl || request.path,
     ...extra,
   };
+}
+
+function csvCell(value) {
+  const text = value === null || value === undefined ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function securityEventsCsv(entries) {
+  const headers = ['createdAt', 'action', 'adminUserId', 'targetUserId', 'ip', 'userAgent', 'method', 'path', 'reason', 'detailsJson'];
+  const rows = entries.map((entry) => {
+    const details = entry.details || {};
+    return [
+      entry.createdAt,
+      entry.action,
+      entry.adminUserId || '',
+      entry.targetUserId || '',
+      details.ip || '',
+      details.userAgent || '',
+      details.method || '',
+      details.path || '',
+      details.reason || '',
+      JSON.stringify(details),
+    ].map(csvCell).join(',');
+  });
+  return `${headers.map(csvCell).join(',')}\n${rows.join('\n')}\n`;
 }
 
 function sessionRequestDetails(request) {
@@ -510,6 +562,57 @@ async function sendBackupExportNotification(user, request) {
   });
 }
 
+async function sendSuspiciousAdminLoginAlert(user, request, failedAttempts) {
+  if (!user?.email) {
+    return false;
+  }
+
+  const details = auditRequestDetails(request);
+  return sendMail({
+    to: user.email,
+    subject: 'התראת ניסיונות כניסה למנהל ב-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'זוהו מספר ניסיונות כניסה כושלים לחשבון מנהל ב-EduFitScore.',
+      '',
+      `מספר ניסיונות אחרונים: ${failedAttempts}`,
+      `כתובת דוא"ל: ${user.email}`,
+      `כתובת IP: ${details.ip || '-'}`,
+      `דפדפן/מכשיר: ${details.userAgent || '-'}`,
+      `זמן: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+      '',
+      'אם אלו לא היו ניסיונות שלכם, מומלץ לבדוק פעילות התחברות, להחליף סיסמה ולוודא שאימות דו-שלבי פעיל.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
+async function maybeAlertSuspiciousAdminLogin(user, request) {
+  const details = auditRequestDetails(request, { email: user.email });
+  const since = new Date(Date.now() - (15 * 60 * 1000)).toISOString();
+  const cooldownSince = new Date(Date.now() - (30 * 60 * 1000)).toISOString();
+  const failedAttempts = await countRecentAdminAuditActions('admin_login_failed', { email: user.email, ip: details.ip }, since);
+  if (failedAttempts < 3) {
+    return;
+  }
+
+  const recentAlerts = await countRecentAdminAuditActions('admin_login_alert_sent', { email: user.email, ip: details.ip }, cooldownSince);
+  if (recentAlerts) {
+    return;
+  }
+
+  try {
+    const sent = await sendSuspiciousAdminLoginAlert(user, request, failedAttempts);
+    await logAdminAction(user.id, user.id, sent ? 'admin_login_alert_sent' : 'admin_login_alert_failed', auditRequestDetails(request, sent
+      ? { email: user.email, failedAttempts }
+      : { email: user.email, failedAttempts, reason: 'EMAIL_NOT_SENT' }));
+  } catch (error) {
+    await logAdminAction(user.id, user.id, 'admin_login_alert_failed', auditRequestDetails(request, { email: user.email, failedAttempts, reason: error.message || 'EMAIL_FAILED' }));
+  }
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
@@ -627,6 +730,7 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
       const existing = await findUserForSecurityAudit(String(email || '').trim().toLowerCase());
       if (existing?.role === 'admin') {
         await logAdminAction(existing.id, existing.id, 'admin_login_failed', auditRequestDetails(request, { email: existing.email, reason: existing.isActive ? 'INVALID_CREDENTIALS' : 'INACTIVE_ACCOUNT' }));
+        await maybeAlertSuspiciousAdminLogin(existing, request);
       }
     } catch {
       // Keep login failure response neutral and do not reveal whether the email exists.
@@ -945,10 +1049,14 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
 
   try {
     await changeUserPassword(request.authUser.id, oldPassword, newPassword);
+    const deleted = await deleteOtherUserSessions(request.authUser.id, request.cookies?.edufitscore_session || '');
     if (request.authUser.role === 'admin') {
-      await logAdminAction(request.authUser.id, request.authUser.id, 'password_change', auditRequestDetails(request));
+      await logAdminAction(request.authUser.id, request.authUser.id, 'password_change', auditRequestDetails(request, { revokedOtherSessions: deleted }));
+      if (deleted) {
+        await logAdminAction(request.authUser.id, request.authUser.id, 'logout_other_sessions_after_password_change', auditRequestDetails(request, { deleted }));
+      }
     }
-    response.json({ ok: true });
+    response.json({ ok: true, revokedOtherSessions: deleted });
   } catch (error) {
     if (error.message === 'INVALID_PASSWORD') {
       response.status(401).json({ error: 'INVALID_PASSWORD' });
@@ -1194,6 +1302,31 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
   ]);
   const entries = (await listAdminAuditLog(200)).filter((entry) => securityActions.has(entry.action));
   response.json({ entries });
+});
+
+app.post('/api/admin/security-events/export', adminSecurityExportRateLimit, requireAuth, async (request, response) => {
+  if (request.authUser.role !== 'admin') {
+    response.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  if (!await ensureCurrentAdminPassword(request, response, 'export_security_log')) return;
+
+  const format = String(request.body?.format || 'csv').toLowerCase() === 'json' ? 'json' : 'csv';
+  const entries = await listAdminAuditLog(1000);
+  const date = new Date().toISOString().slice(0, 10);
+  await logAdminAction(request.authUser.id, null, 'export_security_log', auditRequestDetails(request, { format, entries: entries.length }));
+
+  if (format === 'json') {
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.setHeader('Content-Disposition', `attachment; filename="edufitscore-security-log-${date}.json"`);
+    response.send(JSON.stringify({ exportedAt: new Date().toISOString(), entries }, null, 2));
+    return;
+  }
+
+  response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  response.setHeader('Content-Disposition', `attachment; filename="edufitscore-security-log-${date}.csv"`);
+  response.send(securityEventsCsv(entries));
 });
 
 app.get('/api/admin/backup', requireAuth, (request, response) => {

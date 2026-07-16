@@ -384,6 +384,9 @@
               <button id="admin-security-admin-tab" type="button" class="admin-tab-button is-hidden" role="tab">ניהול</button>
               <button id="admin-security-current-tab" type="button" class="admin-tab-button is-hidden" role="tab">אבטחה</button>
             </div>
+            <div class="admin-dashboard-actions">
+              <button id="admin-security-export-button" type="button" class="secondary-button teacher-panel-button">ייצוא יומן אבטחה</button>
+            </div>
             <div id="admin-security-events" class="admin-audit-log admin-security-events-container"></div>
           </div>
         </div>
@@ -577,6 +580,32 @@
             <div class="teacher-entry-actions">
               <button type="submit" class="teacher-panel-button">הורדת גיבוי</button>
               <button id="admin-backup-export-cancel" type="button" class="back-home-button">ביטול</button>
+            </div>
+          </form>
+        </div>
+      </section>
+      <section id="admin-security-export-modal" class="modal-overlay is-hidden" aria-hidden="true">
+        <div class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="admin-security-export-title">
+          <button id="admin-security-export-close" type="button" class="modal-close-button" aria-label="סגירה">X</button>
+          <h2 id="admin-security-export-title">ייצוא יומן אבטחה</h2>
+          <p>היומן כולל פעולות אבטחה, כתובות IP ופרטי דפדפן. יש להזין סיסמת מנהל נוכחית לפני ייצוא.</p>
+          <form id="admin-security-export-form" class="member-login-form">
+            <label class="field-label" for="admin-security-export-password">סיסמת מנהל נוכחית</label>
+            <div class="password-field">
+              <input id="admin-security-export-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
+            <label class="field-label" for="admin-security-export-format">פורמט</label>
+            <select id="admin-security-export-format" name="format">
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+            </select>
+            <div id="admin-security-export-error" class="login-error" role="alert" aria-live="polite"></div>
+            <div class="teacher-entry-actions">
+              <button type="submit" class="teacher-panel-button">ייצוא</button>
+              <button id="admin-security-export-cancel" type="button" class="back-home-button">ביטול</button>
             </div>
           </form>
         </div>
