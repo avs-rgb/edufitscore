@@ -5192,42 +5192,138 @@ async function copyHistoryGraphLink() {
 }
 
 function downloadHistoryGraphImage() {
-  const svg = teacherHistoryGraph.querySelector('.history-graph-svg');
-  if (!svg) {
+  const graphData = getHistoryGraphData();
+  const visibleStudents = graphData.series
+    .map((student, originalIndex) => ({ ...student, originalIndex }))
+    .filter((student) => visibleHistoryGraphStudents.has(student.name));
+
+  if (!graphData.entries.length || !visibleStudents.length) {
     setHistoryGraphMessage('אין גרף להורדה.', true);
     return;
   }
 
-  const svgClone = svg.cloneNode(true);
-  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-  style.textContent = `
-    .history-graph-grid { stroke: #c99c78; stroke-width: 1.4; }
-    .history-graph-grid-minor { stroke: #f4e8dd; stroke-width: 0.55; }
-    .history-graph-axis { stroke: #5e4335; stroke-width: 2; }
-    text { fill: #3a2417; font: bold 13px Segoe UI, Arial, sans-serif; }
-  `;
-  svgClone.insertBefore(style, svgClone.firstChild);
-  const serializer = new XMLSerializer();
-  const svgText = serializer.serializeToString(svgClone);
-  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const image = new Image();
-
-  image.onload = () => {
-    const graphData = getHistoryGraphData();
-    const visibleStudents = graphData.series
-      .map((student, originalIndex) => ({ ...student, originalIndex }))
-      .filter((student) => visibleHistoryGraphStudents.has(student.name));
+  try {
     const colors = ['#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#8c564b', '#e377c2', '#bcbd22', '#4b5563'];
+    const shapes = ['circle', 'square', 'triangle', 'diamond', 'star'];
     const canvas = document.createElement('canvas');
+    const width = 1200;
+    const chartHeight = 520;
+    const legendRows = Math.max(1, Math.ceil(visibleStudents.length / 4));
+    const margin = { top: 38, right: 90, bottom: 70, left: 68 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = chartHeight - margin.top - margin.bottom;
+    const xForIndex = (index) => margin.left + (graphData.entries.length === 1 ? plotWidth / 2 : (plotWidth * index) / (graphData.entries.length - 1));
+    const yForScore = (score) => margin.top + plotHeight - (plotHeight * Number(score)) / 100;
+    const downloadCanvas = (href) => {
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = `history-graph-${currentTeacherClass()?.name || 'class'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setHistoryGraphMessage('התמונה הורדה.');
+    };
+    const drawMarker = (shape, x, y, color) => {
+      context.fillStyle = color;
+      context.beginPath();
+      if (shape === 'square') {
+        context.fillRect(x - 6, y - 6, 12, 12);
+        return;
+      }
+      if (shape === 'triangle') {
+        context.moveTo(x, y - 8);
+        context.lineTo(x - 8, y + 7);
+        context.lineTo(x + 8, y + 7);
+        context.closePath();
+        context.fill();
+        return;
+      }
+      if (shape === 'diamond') {
+        context.moveTo(x, y - 8);
+        context.lineTo(x - 8, y);
+        context.lineTo(x, y + 8);
+        context.lineTo(x + 8, y);
+        context.closePath();
+        context.fill();
+        return;
+      }
+      if (shape === 'star') {
+        context.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText('★', x, y);
+        return;
+      }
+      context.arc(x, y, 7, 0, Math.PI * 2);
+      context.fill();
+    };
+
     canvas.width = 1200;
-    canvas.height = 590 + (Math.ceil(visibleStudents.length / 4) * 28);
+    canvas.height = 590 + (legendRows * 30);
     const context = canvas.getContext('2d');
     context.fillStyle = '#fffaf5';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, 520);
+    context.strokeStyle = '#d8b38e';
+    context.lineWidth = 3;
+    context.strokeRect(20, 18, width - 40, chartHeight - 32);
+
+    for (let tick = 0; tick <= 100; tick += 5) {
+      const major = tick % 20 === 0;
+      context.strokeStyle = major ? '#c99c78' : '#f4e8dd';
+      context.lineWidth = major ? 1.4 : 0.55;
+      context.beginPath();
+      context.moveTo(margin.left, yForScore(tick));
+      context.lineTo(width - margin.right, yForScore(tick));
+      context.stroke();
+    }
+
+    context.strokeStyle = '#5e4335';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(margin.left, margin.top);
+    context.lineTo(margin.left, chartHeight - margin.bottom);
+    context.lineTo(width - margin.right, chartHeight - margin.bottom);
+    context.stroke();
+
+    context.fillStyle = '#3a2417';
+    context.font = 'bold 19px "Segoe UI", Arial, sans-serif';
+    context.textAlign = 'left';
+    context.textBaseline = 'alphabetic';
+    context.fillText('ציון', margin.left, 30);
+    context.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+    context.textAlign = 'right';
+    [0, 20, 40, 60, 80, 100].forEach((tick) => {
+      context.fillText(String(tick), margin.left - 16, yForScore(tick) + 5);
+    });
+    context.textAlign = 'center';
+    graphData.entries.forEach((entry, index) => {
+      context.fillText(entry.date, xForIndex(index), chartHeight - 28);
+    });
+
+    visibleStudents.forEach((student) => {
+      const color = colors[student.originalIndex % colors.length];
+      const shape = shapes[student.originalIndex % shapes.length];
+      let previousPoint = null;
+      student.scores.forEach((score, index) => {
+        if (score === null) {
+          previousPoint = null;
+          return;
+        }
+        const normalizedScore = typeof score === 'number' ? { score } : score;
+        const point = { x: xForIndex(index), y: yForScore(normalizedScore.score) };
+        if (previousPoint) {
+          context.strokeStyle = color;
+          context.lineWidth = 4;
+          context.beginPath();
+          context.moveTo(previousPoint.x, previousPoint.y);
+          context.lineTo(point.x, point.y);
+          context.stroke();
+        }
+        drawMarker(shape, point.x, point.y, color);
+        previousPoint = point;
+      });
+    });
+
     context.fillStyle = '#3a2417';
     context.font = 'bold 22px "Segoe UI", Arial, sans-serif';
     context.textAlign = 'right';
@@ -5243,26 +5339,27 @@ function downloadHistoryGraphImage() {
       context.fillStyle = '#3a2417';
       context.fillText(student.name, x - 18, y);
     });
-    URL.revokeObjectURL(url);
-    try {
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `history-graph-${currentTeacherClass()?.name || 'class'}.png`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setHistoryGraphMessage('התמונה הורדה.');
-    } catch (error) {
-      setHistoryGraphMessage('לא ניתן להוריד תמונה כרגע.', true);
+
+    if (canvas.toBlob) {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          try {
+            downloadCanvas(canvas.toDataURL('image/png'));
+          } catch (error) {
+            setHistoryGraphMessage('לא ניתן להוריד תמונה כרגע.', true);
+          }
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        downloadCanvas(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
+    } else {
+      downloadCanvas(canvas.toDataURL('image/png'));
     }
-  };
-
-  image.onerror = () => {
-    URL.revokeObjectURL(url);
+  } catch (error) {
     setHistoryGraphMessage('לא ניתן להוריד תמונה כרגע.', true);
-  };
-
-  image.src = url;
+  }
 }
 
 async function renderSharedHistoryGraph() {
