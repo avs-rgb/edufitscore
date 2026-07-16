@@ -76,6 +76,7 @@ const adminView = document.querySelector('#admin-view');
 const adminSecurityView = document.querySelector('#admin-security-view');
 const adminSecurityBackButton = document.querySelector('#admin-security-back');
 const adminSecurityEvents = document.querySelector('#admin-security-events');
+const adminSecuritySummary = document.querySelector('#admin-security-summary');
 const adminSecurityExportButton = document.querySelector('#admin-security-export-button');
 const adminSecurityExportModal = document.querySelector('#admin-security-export-modal');
 const adminSecurityExportCloseButton = document.querySelector('#admin-security-export-close');
@@ -1725,6 +1726,7 @@ function applyRoute(mode, replace = false) {
   } else if (mode === 'admin' && authUser?.role === 'admin') {
     loadAdminOverview();
   } else if (mode === 'adminSecurity' && authUser?.role === 'admin') {
+    loadAdminSecuritySummary();
     loadAdminSecurityEvents();
   } else if (mode === 'schoolAdmin' && authUser?.isSchoolAdmin) {
     loadSchoolAdminOverview();
@@ -3551,11 +3553,43 @@ async function loadAdminSecurityEvents() {
   renderSecurityEvents(data.entries || []);
 }
 
+async function loadAdminSecuritySummary() {
+  if (!adminSecuritySummary) return;
+  const response = await fetch('/api/admin/security-summary');
+  if (!response.ok) {
+    adminSecuritySummary.innerHTML = '<p>לא ניתן לטעון מצב אבטחה.</p>';
+    return;
+  }
+  const data = await response.json();
+  renderAdminSecuritySummary(data);
+}
+
+function latestSecurityDate(entry) {
+  return entry?.createdAt ? formatAdminDateTime(entry.createdAt) : '-';
+}
+
+function renderAdminSecuritySummary(summary) {
+  const twoFactorText = summary.twoFactor?.enabled
+    ? `פעיל (${Number(summary.twoFactor.recoveryCodeCount || 0)} קודי שחזור)`
+    : 'כבוי';
+  adminSecuritySummary.innerHTML = `
+    <div class="teacher-summary-card"><strong>אימות דו-שלבי</strong><span>${escapeHtml(twoFactorText)}${summary.twoFactor?.bypassed ? ' - מעקף חירום פעיל' : ''}</span></div>
+    <div class="teacher-summary-card"><strong>סשנים פעילים</strong><span>${Number(summary.sessions?.activeCount || 0)}</span></div>
+    <div class="teacher-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${Number(summary.idleTimeout?.adminMinutes || 0)} דק׳ / משתמש ${Number(summary.idleTimeout?.userMinutes || 0)} דק׳</span></div>
+    <div class="teacher-summary-card"><strong>אימות מחדש</strong><span>${Number(summary.reauth?.windowMinutes || 0)} דקות לפעולות רגישות</span></div>
+    <div class="teacher-summary-card"><strong>כניסה כושלת אחרונה</strong><span>${latestSecurityDate(summary.latest?.failedAdminLogin)}</span></div>
+    <div class="teacher-summary-card"><strong>גיבוי אחרון</strong><span>${latestSecurityDate(summary.latest?.backupExport)}</span></div>
+    <div class="teacher-summary-card"><strong>ייצוא יומן אבטחה</strong><span>${latestSecurityDate(summary.latest?.securityLogExport)}</span></div>
+    <div class="teacher-summary-card"><strong>שינוי סיסמה אחרון</strong><span>${latestSecurityDate(summary.latest?.passwordChange)}</span></div>
+  `;
+}
+
 function renderSecurityEvents(entries) {
   const actionLabels = {
     admin_login_failed: 'כניסת מנהל נכשלה',
     admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
     admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
+    admin_reauth_success: 'אימות מנהל לפעולה רגישה',
     admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
     admin_2fa_enabled: 'אימות דו-שלבי הופעל',
@@ -3642,6 +3676,7 @@ async function exportAdminSecurityLog(event) {
     link.remove();
     URL.revokeObjectURL(url);
     closeAdminSecurityExportModal();
+    await loadAdminSecuritySummary();
     await loadAdminSecurityEvents();
   } finally {
     if (submitButton) submitButton.disabled = false;
@@ -3656,6 +3691,7 @@ function renderAdminAuditLogFromFilter() {
     admin_login_failed: 'כניסת מנהל נכשלה',
     admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
     admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
+    admin_reauth_success: 'אימות מנהל לפעולה רגישה',
     admin_login: 'כניסת מנהל',
     password_change: 'שינוי סיסמה',
     account_deactivate: 'השבתת חשבון עצמי',

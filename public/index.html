@@ -387,6 +387,7 @@
             <div class="admin-dashboard-actions">
               <button id="admin-security-export-button" type="button" class="secondary-button teacher-panel-button">ייצוא יומן אבטחה</button>
             </div>
+            <div id="admin-security-summary" class="admin-summary-box"></div>
             <div id="admin-security-events" class="admin-audit-log admin-security-events-container"></div>
           </div>
         </div>
@@ -532,9 +533,9 @@
           <h2 id="admin-password-title">איפוס סיסמה</h2>
           <p id="admin-password-message"></p>
           <form id="admin-password-form" class="member-login-form">
-            <label class="field-label" for="admin-current-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -569,9 +570,9 @@
           <h2 id="admin-backup-export-title">אישור הורדת גיבוי</h2>
           <p>הגיבוי כולל נתוני משתמשים, כיתות והיסטוריה. יש להזין סיסמת מנהל נוכחית לפני הורדה.</p>
           <form id="admin-backup-export-form" class="member-login-form">
-            <label class="field-label" for="admin-backup-export-current-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-backup-export-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-backup-export-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-backup-export-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -590,9 +591,9 @@
           <h2 id="admin-security-export-title">ייצוא יומן אבטחה</h2>
           <p>היומן כולל פעולות אבטחה, כתובות IP ופרטי דפדפן. יש להזין סיסמת מנהל נוכחית לפני ייצוא.</p>
           <form id="admin-security-export-form" class="member-login-form">
-            <label class="field-label" for="admin-security-export-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-security-export-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-security-export-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-security-export-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -616,9 +617,9 @@
           <h2 id="admin-backup-confirm-title">אישור ייבוא גיבוי</h2>
           <p>ייבוא גיבוי עשוי להחליף נתונים קיימים. יש לבצע פעולה זו רק לאחר בדיקה.</p>
           <form id="admin-backup-confirm-form" class="member-login-form">
-            <label class="field-label" for="admin-backup-current-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-backup-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-backup-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-backup-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -639,9 +640,9 @@
           <h2 id="admin-permanent-delete-title">מחיקה לצמיתות</h2>
           <p id="admin-permanent-delete-message"></p>
           <form id="admin-permanent-delete-form" class="member-login-form">
-            <label class="field-label" for="admin-permanent-delete-current-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-permanent-delete-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-permanent-delete-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-permanent-delete-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -672,9 +673,9 @@
           <h2 id="admin-2fa-regenerate-title">יצירת קודי שחזור חדשים</h2>
           <p>פעולה זו תבטל את קודי השחזור הישנים לאחר אישור בדוא"ל. יש להזין סיסמת מנהל נוכחית וקוד אימות מהאפליקציה.</p>
           <form id="admin-2fa-regenerate-form" class="member-login-form">
-            <label class="field-label" for="admin-2fa-regenerate-password">סיסמת מנהל נוכחית</label>
+            <label class="field-label" for="admin-2fa-regenerate-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
-              <input id="admin-2fa-regenerate-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+              <input id="admin-2fa-regenerate-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -762,9 +763,9 @@
               <h3>אבטחת מנהל</h3>
               <div id="admin-2fa-status" class="admin-security-status"></div>
               <form id="admin-2fa-start-form" class="member-login-form admin-restore-compact-form">
-                <label class="field-label" for="admin-2fa-start-password">סיסמת מנהל נוכחית</label>
+                <label class="field-label" for="admin-2fa-start-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
                 <div class="password-field">
-                  <input id="admin-2fa-start-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+                  <input id="admin-2fa-start-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
                   <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                     <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
                   </button>
@@ -788,9 +789,9 @@
                 <button id="admin-2fa-regenerate-recovery" type="button" class="secondary-button teacher-panel-button">יצירת קודי שחזור חדשים</button>
               </div>
               <form id="admin-2fa-disable-form" class="member-login-form admin-restore-compact-form is-hidden">
-                <label class="field-label" for="admin-2fa-disable-password">סיסמת מנהל נוכחית</label>
+                <label class="field-label" for="admin-2fa-disable-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
                 <div class="password-field">
-                  <input id="admin-2fa-disable-password" name="currentAdminPassword" type="password" autocomplete="current-password" required />
+                  <input id="admin-2fa-disable-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
                   <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                     <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
                   </button>

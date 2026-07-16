@@ -87,6 +87,7 @@ const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
 const csrfUnsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 30) * 60 * 1000;
 const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 120) * 60 * 1000;
+const adminReauthWindowMs = Number(process.env.ADMIN_REAUTH_WINDOW_MINUTES || 5) * 60 * 1000;
 app.set('trust proxy', 1);
 
 function createJsonRateLimit(options) {
@@ -274,6 +275,42 @@ function csrfCookieOptions(expiresAt) {
   };
 }
 
+function adminReauthCookieOptions(expiresAt) {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://'),
+    expires: new Date(expiresAt),
+    path: '/',
+  };
+}
+
+function signAdminReauthPayload(payload) {
+  return crypto.createHmac('sha256', process.env.SESSION_SECRET || 'edufitscore-local-secret').update(payload).digest('hex');
+}
+
+function createAdminReauthToken(userId) {
+  const expiresAt = new Date(Date.now() + adminReauthWindowMs).toISOString();
+  const payload = Buffer.from(JSON.stringify({ userId, expiresAt, nonce: crypto.randomBytes(12).toString('hex') }), 'utf8').toString('base64url');
+  return { token: `${payload}.${signAdminReauthPayload(payload)}`, expiresAt };
+}
+
+function validAdminReauthToken(token, userId) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature || signAdminReauthPayload(payload) !== signature) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Number(data.userId) === Number(userId) && Date.parse(data.expiresAt) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function setAdminReauthCookie(response, userId) {
+  const reauth = createAdminReauthToken(userId);
+  response.cookie('edufitscore_admin_reauth', reauth.token, adminReauthCookieOptions(reauth.expiresAt));
+}
+
 function setAuthCookies(response, session) {
   response.cookie('edufitscore_session', session.token, sessionCookieOptions(session.expiresAt));
   response.cookie('edufitscore_csrf', session.csrfToken, csrfCookieOptions(session.expiresAt));
@@ -282,6 +319,7 @@ function setAuthCookies(response, session) {
 function clearAuthCookies(response) {
   response.clearCookie('edufitscore_session', { path: '/' });
   response.clearCookie('edufitscore_csrf', { path: '/' });
+  response.clearCookie('edufitscore_admin_reauth', { path: '/' });
 }
 
 async function attachUser(request, response, next) {
@@ -614,8 +652,14 @@ async function maybeAlertSuspiciousAdminLogin(user, request) {
 }
 
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
+  if (validAdminReauthToken(request.cookies?.edufitscore_admin_reauth, request.authUser.id)) {
+    return true;
+  }
+
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
+    setAdminReauthCookie(response, request.authUser.id);
+    await logAdminAction(request.authUser.id, targetUserId, 'admin_reauth_success', auditRequestDetails(request, { action }));
     return true;
   }
 
@@ -1056,6 +1100,7 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
         await logAdminAction(request.authUser.id, request.authUser.id, 'logout_other_sessions_after_password_change', auditRequestDetails(request, { deleted }));
       }
     }
+    response.clearCookie('edufitscore_admin_reauth', { path: '/' });
     response.json({ ok: true, revokedOtherSessions: deleted });
   } catch (error) {
     if (error.message === 'INVALID_PASSWORD') {
@@ -1287,21 +1332,70 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
   }
   const securityActions = new Set([
     'admin_login_failed',
+    'admin_login_alert_sent',
+    'admin_login_alert_failed',
+    'admin_reauth_success',
     'admin_2fa_login_failed',
     'admin_2fa_recovery_code_used',
     'admin_2fa_enabled',
     'admin_2fa_disabled',
+    'admin_2fa_disable_failed',
+    'admin_2fa_recovery_regenerate_requested',
+    'admin_2fa_recovery_regenerate_confirmed',
+    'admin_2fa_recovery_regenerate_failed',
+    'admin_2fa_recovery_regenerate_confirm_failed',
     'password_change',
     'reset_password',
     'reset_password_failed',
+    'export_backup',
+    'export_backup_notification_failed',
+    'export_security_log',
+    'export_security_log_failed',
     'restore_backup',
     'restore_backup_failed',
     'permanent_delete_user',
     'permanent_delete_user_failed',
     'logout_other_sessions',
+    'logout_other_sessions_after_password_change',
+    'session_idle_timeout',
   ]);
   const entries = (await listAdminAuditLog(200)).filter((entry) => securityActions.has(entry.action));
   response.json({ entries });
+});
+
+app.get('/api/admin/security-summary', requireAuth, async (request, response) => {
+  if (request.authUser.role !== 'admin') {
+    response.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  const [twoFactor, sessions, auditEntries] = await Promise.all([
+    getAdminTwoFactorState(request.authUser.id),
+    listUserSessions(request.authUser.id, request.cookies?.edufitscore_session || ''),
+    listAdminAuditLog(500),
+  ]);
+  const latestAction = (actions) => auditEntries.find((entry) => actions.includes(entry.action)) || null;
+
+  response.json({
+    twoFactor: {
+      enabled: Boolean(twoFactor?.enabled),
+      bypassed: isAdminTwoFactorBypassed(),
+      recoveryCodeCount: twoFactor?.recoveryCodeCount || 0,
+    },
+    sessions: { activeCount: sessions.length },
+    idleTimeout: {
+      adminMinutes: Math.round(adminIdleTimeoutMs / 60000),
+      userMinutes: Math.round(userIdleTimeoutMs / 60000),
+    },
+    reauth: { windowMinutes: Math.round(adminReauthWindowMs / 60000) },
+    latest: {
+      failedAdminLogin: latestAction(['admin_login_failed']),
+      backupExport: latestAction(['export_backup']),
+      securityLogExport: latestAction(['export_security_log']),
+      passwordChange: latestAction(['password_change']),
+      restoreBackup: latestAction(['restore_backup']),
+    },
+  });
 });
 
 app.post('/api/admin/security-events/export', adminSecurityExportRateLimit, requireAuth, async (request, response) => {
