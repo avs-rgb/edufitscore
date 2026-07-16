@@ -96,6 +96,7 @@ const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 }
 const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
 const emailVerificationRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
+const adminBackupExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const teacherClassImportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
@@ -1090,13 +1091,19 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
   response.json({ entries });
 });
 
-app.get('/api/admin/backup', requireAuth, async (request, response) => {
+app.get('/api/admin/backup', requireAuth, (request, response) => {
+  response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+});
+
+app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, async (request, response) => {
   if (request.authUser.role !== 'admin') {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
 
-  await logAdminAction(request.authUser.id, null, 'export_backup');
+  if (!await ensureCurrentAdminPassword(request, response, 'export_backup')) return;
+
+  await logAdminAction(request.authUser.id, null, 'export_backup', auditRequestDetails(request));
   response.json(await exportBackupData());
 });
 

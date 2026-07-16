@@ -109,6 +109,11 @@ const adminPasswordMessage = document.querySelector('#admin-password-message');
 const adminPasswordError = document.querySelector('#admin-password-error');
 const adminGeneratePasswordButton = document.querySelector('#admin-generate-password');
 const adminTemporaryPassword = document.querySelector('#admin-temporary-password');
+const adminBackupExportModal = document.querySelector('#admin-backup-export-modal');
+const adminBackupExportCloseButton = document.querySelector('#admin-backup-export-close');
+const adminBackupExportCancelButton = document.querySelector('#admin-backup-export-cancel');
+const adminBackupExportForm = document.querySelector('#admin-backup-export-form');
+const adminBackupExportError = document.querySelector('#admin-backup-export-error');
 const adminBackupConfirmModal = document.querySelector('#admin-backup-confirm-modal');
 const adminBackupConfirmCloseButton = document.querySelector('#admin-backup-confirm-close');
 const adminBackupConfirmCancelButton = document.querySelector('#admin-backup-confirm-cancel');
@@ -3565,12 +3570,37 @@ async function restoreInactiveUser(email) {
   await loadAdminOverview();
 }
 
-async function downloadAdminBackup() {
+function openAdminBackupExportModal() {
   adminRestoreMessage.textContent = '';
-  const response = await fetch('/api/admin/backup');
+  adminBackupExportError.textContent = '';
+  adminBackupExportForm.reset();
+  adminBackupExportModal.classList.remove('is-hidden');
+  adminBackupExportModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminBackupExportModal() {
+  adminBackupExportForm.reset();
+  adminBackupExportError.textContent = '';
+  adminBackupExportModal.classList.add('is-hidden');
+  adminBackupExportModal.setAttribute('aria-hidden', 'true');
+}
+
+async function downloadAdminBackup(currentAdminPassword) {
+  adminRestoreMessage.textContent = '';
+  const response = await apiFetch('/api/admin/backup/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentAdminPassword }),
+  });
 
   if (!response.ok) {
-    adminRestoreMessage.textContent = 'לא ניתן להוריד גיבוי כרגע.';
+    if (response.status === 401) {
+      adminBackupExportError.textContent = 'סיסמת המנהל אינה נכונה.';
+    } else if (response.status === 429) {
+      adminBackupExportError.textContent = 'יותר מדי ניסיונות. נסו שוב מאוחר יותר.';
+    } else {
+      adminBackupExportError.textContent = 'לא ניתן להוריד גיבוי כרגע.';
+    }
     return;
   }
 
@@ -3585,7 +3615,23 @@ async function downloadAdminBackup() {
   link.remove();
   URL.revokeObjectURL(url);
   adminRestoreMessage.textContent = 'הגיבוי הורד.';
+  closeAdminBackupExportModal();
   await loadAdminAuditLog();
+}
+
+async function confirmAdminBackupExport(event) {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(adminBackupExportForm).entries());
+  adminBackupExportError.textContent = '';
+
+  const submitButton = event.submitter;
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    await downloadAdminBackup(payload.currentAdminPassword);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 async function restoreAdminBackupFromFile(file) {
@@ -3955,7 +4001,7 @@ async function handleMemberLogin(event) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     memberLoginError.textContent = errorData.error === 'EMAIL_NOT_VERIFIED'
-      ? 'יש לאמת את כתובת הדוא"ל לפני התחברות. בדקו את תיבת הדואר שקיבלתם לאחר ההרשמה.'
+      ? 'יש לאמת את כתובת הדוא"ל לפני התחברות. אם מדובר בחשבון קיים או בחשבון מנהל, פנו לתמיכה.'
       : 'הדוא"ל או הסיסמה שגויים.';
     return;
   }
@@ -6651,7 +6697,7 @@ async function init() {
   if (adminTwoFactorStartForm) { adminTwoFactorStartForm.addEventListener('submit', startAdminTwoFactorSetup); }
   if (adminTwoFactorVerifyForm) { adminTwoFactorVerifyForm.addEventListener('submit', verifyAdminTwoFactorSetup); }
   if (adminTwoFactorDisableForm) { adminTwoFactorDisableForm.addEventListener('submit', disableAdminTwoFactor); }
-  if (adminBackupButton) { adminBackupButton.addEventListener('click', () => withBrieflyDisabled(adminBackupButton, downloadAdminBackup)); }
+  if (adminBackupButton) { adminBackupButton.addEventListener('click', openAdminBackupExportModal); }
   if (adminBackupImport) { adminBackupImport.addEventListener('change', () => restoreAdminBackupFromFile(adminBackupImport.files?.[0])); }
   if (adminAuditFilter) { adminAuditFilter.addEventListener('change', renderAdminAuditLogFromFilter); }
   if (adminInactiveUsers) {
@@ -6717,6 +6763,9 @@ async function init() {
   if (adminGeneratePasswordButton) { adminGeneratePasswordButton.addEventListener('click', fillGeneratedTemporaryPassword); }
   if (adminPasswordCancelButton) { adminPasswordCancelButton.addEventListener('click', closeAdminPasswordModal); }
   if (adminPasswordCloseButton) { adminPasswordCloseButton.addEventListener('click', closeAdminPasswordModal); }
+  if (adminBackupExportForm) { adminBackupExportForm.addEventListener('submit', confirmAdminBackupExport); }
+  if (adminBackupExportCancelButton) { adminBackupExportCancelButton.addEventListener('click', closeAdminBackupExportModal); }
+  if (adminBackupExportCloseButton) { adminBackupExportCloseButton.addEventListener('click', closeAdminBackupExportModal); }
   if (adminBackupConfirmForm) { adminBackupConfirmForm.addEventListener('submit', confirmAdminBackupRestore); }
   if (adminBackupConfirmCancelButton) { adminBackupConfirmCancelButton.addEventListener('click', closeAdminBackupConfirmModal); }
   if (adminBackupConfirmCloseButton) { adminBackupConfirmCloseButton.addEventListener('click', closeAdminBackupConfirmModal); }
