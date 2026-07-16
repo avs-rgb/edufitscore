@@ -94,6 +94,7 @@ const adminTwoFactorQr = document.querySelector('#admin-2fa-qr');
 const adminTwoFactorSecret = document.querySelector('#admin-2fa-secret');
 const adminTwoFactorVerifyForm = document.querySelector('#admin-2fa-verify-form');
 const adminTwoFactorRecovery = document.querySelector('#admin-2fa-recovery');
+const adminTwoFactorRecoveryManagement = document.querySelector('#admin-2fa-recovery-management');
 const adminTwoFactorRegenerateRecoveryButton = document.querySelector('#admin-2fa-regenerate-recovery');
 const adminTwoFactorDisableForm = document.querySelector('#admin-2fa-disable-form');
 const adminTwoFactorMessage = document.querySelector('#admin-2fa-message');
@@ -3287,7 +3288,7 @@ function renderAdminTwoFactorStatus(data) {
     : '<p><strong>אימות דו-שלבי כבוי.</strong> מומלץ להפעיל עבור חשבון מנהל גלובלי.</p>';
   adminTwoFactorStartForm.classList.toggle('is-hidden', enabled);
   adminTwoFactorDisableForm.classList.toggle('is-hidden', !enabled);
-  adminTwoFactorRegenerateRecoveryButton.classList.toggle('is-hidden', !enabled);
+  adminTwoFactorRecoveryManagement.classList.toggle('is-hidden', !enabled);
   adminTwoFactorSetup.classList.add('is-hidden');
   if (!enabled) {
     adminTwoFactorRecovery.classList.add('is-hidden');

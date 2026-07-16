@@ -1760,7 +1760,8 @@ p {
 #profile-admin-security-panel .admin-security-status,
 #profile-admin-security-panel .login-error,
 #profile-admin-security-panel .admin-2fa-setup,
-#profile-admin-security-panel .admin-2fa-recovery {
+#profile-admin-security-panel .admin-2fa-recovery,
+#profile-admin-security-panel .admin-2fa-recovery-management {
   width: min(100%, 520px);
   text-align: center;
 }
