@@ -67,6 +67,7 @@ const {
   findUserBySessionToken,
   listUserSessions,
   deleteOtherUserSessions,
+  deleteUserSessionByPublicId,
   touchSession,
   deleteSession,
   listTeacherClasses,
@@ -651,6 +652,51 @@ async function maybeAlertSuspiciousAdminLogin(user, request) {
   }
 }
 
+async function sendAdminRecoveryCodeUsedAlert(user, request) {
+  if (!user?.email) return false;
+  const details = auditRequestDetails(request);
+  return sendMail({
+    to: user.email,
+    subject: 'נעשה שימוש בקוד שחזור ב-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'בוצעה כניסה לחשבון המנהל באמצעות קוד שחזור של אימות דו-שלבי.',
+      '',
+      `זמן: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+      `כתובת IP: ${details.ip || '-'}`,
+      `דפדפן/מכשיר: ${details.userAgent || '-'}`,
+      '',
+      'אם זו הייתה פעולה שלכם, אין צורך לעשות דבר. אם לא, החליפו סיסמה, נתקו מכשירים אחרים וצרו קודי שחזור חדשים.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
+async function sendAdminPasswordChangeAlert(user, request, revokedOtherSessions) {
+  if (!user?.email) return false;
+  const details = auditRequestDetails(request);
+  return sendMail({
+    to: user.email,
+    subject: 'סיסמת מנהל שונתה ב-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'סיסמת חשבון המנהל ב-EduFitScore שונתה.',
+      '',
+      `זמן: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+      `כתובת IP: ${details.ip || '-'}`,
+      `דפדפן/מכשיר: ${details.userAgent || '-'}`,
+      `מכשירים אחרים שנותקו: ${Number(revokedOtherSessions || 0)}`,
+      '',
+      'אם זו לא הייתה פעולה שלכם, בדקו מיד את פעילות ההתחברות, ודאו שאימות דו-שלבי פעיל ושקלו לסובב סודות מערכת.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   if (validAdminReauthToken(request.cookies?.edufitscore_admin_reauth, request.authUser.id)) {
     return true;
@@ -825,6 +871,14 @@ app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request,
   setAuthCookies(response, session);
   const user = await findUserBySessionToken(session.token);
   await logAdminAction(challenge.userId, challenge.userId, usedRecoveryCode ? 'admin_2fa_recovery_code_used' : 'admin_2fa_login_success', auditRequestDetails(request));
+  if (usedRecoveryCode) {
+    try {
+      const sent = await sendAdminRecoveryCodeUsedAlert(user, request);
+      await logAdminAction(challenge.userId, challenge.userId, sent ? 'admin_2fa_recovery_code_alert_sent' : 'admin_2fa_recovery_code_alert_failed', auditRequestDetails(request, sent ? {} : { reason: 'EMAIL_NOT_SENT' }));
+    } catch (error) {
+      await logAdminAction(challenge.userId, challenge.userId, 'admin_2fa_recovery_code_alert_failed', auditRequestDetails(request, { reason: error.message || 'EMAIL_FAILED' }));
+    }
+  }
   await logAdminAction(challenge.userId, challenge.userId, 'admin_login', auditRequestDetails(request, { email: user.email, twoFactor: true }));
   response.json({ user, csrfToken: session.csrfToken });
 });
@@ -1063,6 +1117,18 @@ app.post('/api/auth/sessions/logout-others', requireAuth, async (request, respon
   response.json({ ok: true, deleted });
 });
 
+app.delete('/api/auth/sessions/:sessionId', requireAuth, async (request, response) => {
+  const deleted = await deleteUserSessionByPublicId(request.authUser.id, request.params.sessionId, request.cookies?.edufitscore_session || '');
+  if (!deleted) {
+    response.status(404).json({ error: 'SESSION_NOT_FOUND' });
+    return;
+  }
+  if (request.authUser.role === 'admin') {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'logout_session', auditRequestDetails(request, { sessionId: request.params.sessionId }));
+  }
+  response.json({ ok: true });
+});
+
 app.put('/api/auth/profile', requireAuth, async (request, response) => {
   try {
     const user = await updateUserProfile(request.authUser.id, request.body || {});
@@ -1098,6 +1164,12 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
       await logAdminAction(request.authUser.id, request.authUser.id, 'password_change', auditRequestDetails(request, { revokedOtherSessions: deleted }));
       if (deleted) {
         await logAdminAction(request.authUser.id, request.authUser.id, 'logout_other_sessions_after_password_change', auditRequestDetails(request, { deleted }));
+      }
+      try {
+        const sent = await sendAdminPasswordChangeAlert(request.authUser, request, deleted);
+        await logAdminAction(request.authUser.id, request.authUser.id, sent ? 'admin_password_change_alert_sent' : 'admin_password_change_alert_failed', auditRequestDetails(request, sent ? {} : { reason: 'EMAIL_NOT_SENT' }));
+      } catch (error) {
+        await logAdminAction(request.authUser.id, request.authUser.id, 'admin_password_change_alert_failed', auditRequestDetails(request, { reason: error.message || 'EMAIL_FAILED' }));
       }
     }
     response.clearCookie('edufitscore_admin_reauth', { path: '/' });
@@ -1337,6 +1409,8 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
     'admin_reauth_success',
     'admin_2fa_login_failed',
     'admin_2fa_recovery_code_used',
+    'admin_2fa_recovery_code_alert_sent',
+    'admin_2fa_recovery_code_alert_failed',
     'admin_2fa_enabled',
     'admin_2fa_disabled',
     'admin_2fa_disable_failed',
@@ -1345,6 +1419,8 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
     'admin_2fa_recovery_regenerate_failed',
     'admin_2fa_recovery_regenerate_confirm_failed',
     'password_change',
+    'admin_password_change_alert_sent',
+    'admin_password_change_alert_failed',
     'reset_password',
     'reset_password_failed',
     'export_backup',
@@ -1356,6 +1432,7 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
     'permanent_delete_user',
     'permanent_delete_user_failed',
     'logout_other_sessions',
+    'logout_session',
     'logout_other_sessions_after_password_change',
     'session_idle_timeout',
   ]);

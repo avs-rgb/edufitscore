@@ -388,8 +388,24 @@
             <div id="admin-security-summary" class="admin-summary-box admin-security-summary"></div>
             <div class="admin-dashboard-actions admin-security-toolbar">
               <button id="admin-security-export-button" type="button" class="secondary-button teacher-panel-button">ייצוא יומן אבטחה</button>
+              <button id="admin-security-runbook-button" type="button" class="secondary-button teacher-panel-button">נוהל אבטחה</button>
             </div>
+            <h3 class="admin-security-section-title">התראות אחרונות</h3>
+            <div id="admin-security-alerts" class="admin-security-alerts"></div>
             <h3 class="admin-security-section-title">אירועי אבטחה</h3>
+            <div class="admin-security-filters">
+              <input id="admin-security-search" type="search" placeholder="חיפוש ביומן אבטחה" />
+              <select id="admin-security-action-filter">
+                <option value="all">כל הפעולות</option>
+                <option value="login">כניסות והתראות</option>
+                <option value="2fa">אימות דו-שלבי</option>
+                <option value="backup">גיבוי וייצוא</option>
+                <option value="password">סיסמה וסשנים</option>
+                <option value="danger">מחיקה ושחזור</option>
+              </select>
+              <input id="admin-security-date-from" type="date" aria-label="מתאריך" />
+              <input id="admin-security-date-to" type="date" aria-label="עד תאריך" />
+            </div>
             <div id="admin-security-events" class="admin-audit-log admin-security-events-container"></div>
           </div>
         </div>
@@ -611,6 +627,26 @@
               <button id="admin-security-export-cancel" type="button" class="back-home-button">ביטול</button>
             </div>
           </form>
+        </div>
+      </section>
+      <section id="admin-security-runbook-modal" class="modal-overlay is-hidden" aria-hidden="true">
+        <div class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="admin-security-runbook-title">
+          <button id="admin-security-runbook-close" type="button" class="modal-close-button" aria-label="סגירה">X</button>
+          <h2 id="admin-security-runbook-title">נוהל אבטחה</h2>
+          <div class="admin-security-runbook-content">
+            <p><strong>אם זוהתה פעילות חשודה:</strong></p>
+            <ol>
+              <li>החליפו סיסמת מנהל.</li>
+              <li>נתקו מכשירים אחרים מהפרופיל.</li>
+              <li>בדקו כניסות כושלות, ייצואי גיבוי ושימוש בקודי שחזור.</li>
+              <li>ודאו שאימות דו-שלבי פעיל ושמרו קודי שחזור חדשים במידת הצורך.</li>
+              <li>אם יש חשד לדליפת סודות, סובבו מפתחות Render, Neon ו-Resend/SMTP.</li>
+              <li>ייצאו יומן אבטחה ושמרו אותו לתיעוד.</li>
+            </ol>
+          </div>
+          <div class="teacher-entry-actions">
+            <button id="admin-security-runbook-ok" type="button" class="teacher-panel-button">הבנתי</button>
+          </div>
         </div>
       </section>
       <section id="admin-backup-confirm-modal" class="modal-overlay is-hidden" aria-hidden="true">

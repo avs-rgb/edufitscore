@@ -77,12 +77,21 @@ const adminSecurityView = document.querySelector('#admin-security-view');
 const adminSecurityBackButton = document.querySelector('#admin-security-back');
 const adminSecurityEvents = document.querySelector('#admin-security-events');
 const adminSecuritySummary = document.querySelector('#admin-security-summary');
+const adminSecurityAlerts = document.querySelector('#admin-security-alerts');
+const adminSecuritySearch = document.querySelector('#admin-security-search');
+const adminSecurityActionFilter = document.querySelector('#admin-security-action-filter');
+const adminSecurityDateFrom = document.querySelector('#admin-security-date-from');
+const adminSecurityDateTo = document.querySelector('#admin-security-date-to');
 const adminSecurityExportButton = document.querySelector('#admin-security-export-button');
+const adminSecurityRunbookButton = document.querySelector('#admin-security-runbook-button');
 const adminSecurityExportModal = document.querySelector('#admin-security-export-modal');
 const adminSecurityExportCloseButton = document.querySelector('#admin-security-export-close');
 const adminSecurityExportCancelButton = document.querySelector('#admin-security-export-cancel');
 const adminSecurityExportForm = document.querySelector('#admin-security-export-form');
 const adminSecurityExportError = document.querySelector('#admin-security-export-error');
+const adminSecurityRunbookModal = document.querySelector('#admin-security-runbook-modal');
+const adminSecurityRunbookCloseButton = document.querySelector('#admin-security-runbook-close');
+const adminSecurityRunbookOkButton = document.querySelector('#admin-security-runbook-ok');
 const adminSummary = document.querySelector('#admin-summary');
 const adminLogoutButton = document.querySelector('#admin-logout-button');
 const adminRestoreUserForm = document.querySelector('#admin-restore-user-form');
@@ -366,6 +375,7 @@ let activeHistoryGraphSubject = '';
 let visibleHistoryGraphStudents = new Set();
 let historyGraphSelectionTouched = false;
 let adminAuditEntries = [];
+let adminSecurityEntries = [];
 let adminUsersSort = { key: '', direction: 'asc' };
 let pendingTwoFactorChallengeToken = '';
 let teacherEditRosterSnapshot = null;
@@ -3550,7 +3560,9 @@ async function loadAdminSecurityEvents() {
     return;
   }
   const data = await response.json();
-  renderSecurityEvents(data.entries || []);
+  adminSecurityEntries = data.entries || [];
+  renderSecurityAlerts(adminSecurityEntries);
+  renderFilteredSecurityEvents();
 }
 
 async function loadAdminSecuritySummary() {
@@ -3592,7 +3604,61 @@ function renderAdminSecuritySummary(summary) {
   `;
 }
 
-function renderSecurityEvents(entries) {
+function securityActionGroup(action) {
+  if (['admin_login_failed', 'admin_login_alert_sent', 'admin_login_alert_failed', 'admin_login'].includes(action)) return 'login';
+  if (String(action || '').startsWith('admin_2fa_')) return '2fa';
+  if (String(action || '').includes('backup') || String(action || '').includes('export_security')) return 'backup';
+  if (String(action || '').includes('password') || String(action || '').includes('session') || String(action || '').includes('logout')) return 'password';
+  if (String(action || '').includes('delete') || String(action || '').includes('restore')) return 'danger';
+  return 'all';
+}
+
+function filteredSecurityEntries() {
+  const search = String(adminSecuritySearch?.value || '').trim().toLowerCase();
+  const group = adminSecurityActionFilter?.value || 'all';
+  const from = adminSecurityDateFrom?.value ? Date.parse(`${adminSecurityDateFrom.value}T00:00:00`) : null;
+  const to = adminSecurityDateTo?.value ? Date.parse(`${adminSecurityDateTo.value}T23:59:59`) : null;
+  return adminSecurityEntries.filter((entry) => {
+    const created = Date.parse(entry.createdAt || '');
+    if (group !== 'all' && securityActionGroup(entry.action) !== group) return false;
+    if (from && Number.isFinite(created) && created < from) return false;
+    if (to && Number.isFinite(created) && created > to) return false;
+    if (!search) return true;
+    const details = entry.details || {};
+    const text = [entry.action, entry.adminEmail, entry.adminName, entry.targetEmail, entry.targetName, details.ip, details.reason, details.email, details.userAgent]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return text.includes(search);
+  });
+}
+
+function renderFilteredSecurityEvents() {
+  renderSecurityEvents(filteredSecurityEntries());
+}
+
+function renderSecurityAlerts(entries) {
+  if (!adminSecurityAlerts) return;
+  const important = new Set([
+    'admin_login_alert_sent',
+    'admin_login_failed',
+    'export_backup',
+    'admin_2fa_recovery_code_used',
+    'password_change',
+    'restore_backup',
+    'permanent_delete_user',
+  ]);
+  const alerts = entries.filter((entry) => important.has(entry.action)).slice(0, 5);
+  adminSecurityAlerts.innerHTML = alerts.length ? alerts.map((entry) => `
+    <article class="admin-security-alert-card">
+      <strong>${escapeHtml(securityActionLabel(entry.action))}</strong>
+      <span>${formatAdminDateTime(entry.createdAt)}</span>
+      <small>${escapeHtml(entry.details?.ip || entry.details?.email || entry.targetEmail || '')}</small>
+    </article>
+  `).join('') : '<p>אין התראות חשובות לאחרונה.</p>';
+}
+
+function securityActionLabel(action) {
   const actionLabels = {
     admin_login_failed: 'כניסת מנהל נכשלה',
     admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
@@ -3600,6 +3666,8 @@ function renderSecurityEvents(entries) {
     admin_reauth_success: 'אימות מנהל לפעולה רגישה',
     admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
+    admin_2fa_recovery_code_alert_sent: 'התראת קוד שחזור נשלחה',
+    admin_2fa_recovery_code_alert_failed: 'התראת קוד שחזור נכשלה',
     admin_2fa_enabled: 'אימות דו-שלבי הופעל',
     admin_2fa_disabled: 'אימות דו-שלבי כובה',
     admin_2fa_disable_failed: 'כיבוי אימות נכשל',
@@ -3608,6 +3676,8 @@ function renderSecurityEvents(entries) {
     admin_2fa_recovery_regenerate_failed: 'בקשת קודי שחזור נכשלה',
     admin_2fa_recovery_regenerate_confirm_failed: 'אישור קודי שחזור נכשל',
     password_change: 'שינוי סיסמה',
+    admin_password_change_alert_sent: 'התראת שינוי סיסמה נשלחה',
+    admin_password_change_alert_failed: 'התראת שינוי סיסמה נכשלה',
     reset_password: 'איפוס סיסמה',
     reset_password_failed: 'איפוס סיסמה נכשל',
     export_backup: 'הורדת גיבוי',
@@ -3617,11 +3687,16 @@ function renderSecurityEvents(entries) {
     permanent_delete_user: 'מחיקת משתמש',
     permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     logout_other_sessions: 'ניתוק מכשירים אחרים',
+    logout_session: 'ניתוק מכשיר יחיד',
     logout_other_sessions_after_password_change: 'ניתוק מכשירים לאחר שינוי סיסמה',
     export_security_log: 'ייצוא יומן אבטחה',
     export_security_log_failed: 'ייצוא יומן אבטחה נכשל',
     session_idle_timeout: 'ניתוק עקב חוסר פעילות',
   };
+  return actionLabels[action] || action;
+}
+
+function renderSecurityEvents(entries) {
   adminSecurityEvents.innerHTML = entries.length ? `
     <table class="admin-audit-table">
       <thead><tr><th>תאריך</th><th>פעולה</th><th>משתמש</th><th>IP</th><th>סיבה</th><th>דפדפן</th></tr></thead>
@@ -3630,7 +3705,7 @@ function renderSecurityEvents(entries) {
         return `
         <tr>
           <td>${formatAdminDateTime(entry.createdAt)}</td>
-          <td>${escapeHtml(actionLabels[entry.action] || entry.action)}</td>
+          <td>${escapeHtml(securityActionLabel(entry.action))}</td>
           <td>${escapeHtml(entry.targetName || entry.targetEmail || entry.adminName || entry.adminEmail || '-')}</td>
           <td>${escapeHtml(entry.details?.ip || '')}</td>
           <td>${escapeHtml(entry.details?.reason || entry.details?.email || '')}</td>
@@ -3654,6 +3729,16 @@ function closeAdminSecurityExportModal() {
   adminSecurityExportError.textContent = '';
   adminSecurityExportModal.classList.add('is-hidden');
   adminSecurityExportModal.setAttribute('aria-hidden', 'true');
+}
+
+function openAdminSecurityRunbookModal() {
+  adminSecurityRunbookModal.classList.remove('is-hidden');
+  adminSecurityRunbookModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminSecurityRunbookModal() {
+  adminSecurityRunbookModal.classList.add('is-hidden');
+  adminSecurityRunbookModal.setAttribute('aria-hidden', 'true');
 }
 
 async function exportAdminSecurityLog(event) {
@@ -3709,8 +3794,11 @@ function renderAdminAuditLogFromFilter() {
     admin_reauth_success: 'אימות מנהל לפעולה רגישה',
     admin_login: 'כניסת מנהל',
     password_change: 'שינוי סיסמה',
+    admin_password_change_alert_sent: 'התראת שינוי סיסמה נשלחה',
+    admin_password_change_alert_failed: 'התראת שינוי סיסמה נכשלה',
     account_deactivate: 'השבתת חשבון עצמי',
     logout_other_sessions_after_password_change: 'ניתוק מכשירים לאחר שינוי סיסמה',
+    logout_session: 'ניתוק מכשיר יחיד',
     reset_password: 'איפוס סיסמה',
     reset_password_failed: 'איפוס סיסמה נכשל',
     permanent_delete_user: 'מחיקת משתמש',
@@ -3731,6 +3819,12 @@ function renderAdminAuditLogFromFilter() {
     admin_2fa_login_success: 'כניסה עם אימות דו-שלבי',
     admin_2fa_login_failed: 'אימות דו-שלבי נכשל',
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
+    admin_2fa_recovery_code_alert_sent: 'התראת קוד שחזור נשלחה',
+    admin_2fa_recovery_code_alert_failed: 'התראת קוד שחזור נכשלה',
+    admin_2fa_recovery_regenerate_requested: 'בקשת קודי שחזור חדשים',
+    admin_2fa_recovery_regenerate_confirmed: 'יצירת קודי שחזור חדשים',
+    admin_2fa_recovery_regenerate_failed: 'בקשת קודי שחזור נכשלה',
+    admin_2fa_recovery_regenerate_confirm_failed: 'אישור קודי שחזור נכשל',
     logout_other_sessions: 'ניתוק מכשירים אחרים',
     school_score_table_create: 'יצירת טבלת ציונים',
     school_score_table_create_failed: 'יצירת טבלה נכשלה',
@@ -4609,14 +4703,26 @@ async function loadProfileSessions() {
   }
   const data = await response.json();
   profileSessionsList.innerHTML = (data.sessions || []).map((session) => `
-    <article class="profile-session-card">
+    <article class="profile-session-card" data-profile-session-id="${escapeAttr(session.id)}">
       <strong>${session.current ? 'המכשיר הנוכחי' : 'מכשיר נוסף'}</strong>
       <div><span>דפדפן</span><b>${escapeHtml(formatSessionDevice(session.userAgent))}</b></div>
       <div><span>IP</span><b>${escapeHtml(session.ipAddress || '-')}</b></div>
       <div><span>פעילות אחרונה</span><b>${formatAdminDateTime(session.lastSeenAt)}</b></div>
       <div><span>תפוגה</span><b>${formatAdminDateTime(session.expiresAt)}</b></div>
+      ${session.current ? '<em>פעיל עכשיו</em>' : `<button type="button" class="back-home-button" data-disconnect-session-id="${escapeAttr(session.id)}">ניתוק מכשיר זה</button>`}
     </article>
   `).join('') || '<p>אין פעילות התחברות להצגה.</p>';
+}
+
+async function disconnectProfileSession(sessionId) {
+  profileSessionsMessage.textContent = '';
+  const response = await apiFetch(`/api/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+  if (!response.ok) {
+    profileSessionsMessage.textContent = 'לא ניתן לנתק את המכשיר כרגע.';
+    return;
+  }
+  profileSessionsMessage.textContent = 'המכשיר נותק.';
+  await loadProfileSessions();
 }
 
 async function logoutOtherSessions() {
@@ -6998,9 +7104,16 @@ async function init() {
   if (adminSecurityCurrentTab) { adminSecurityCurrentTab.addEventListener('click', () => applyRoute('adminSecurity')); }
   if (adminSecurityBackButton) { adminSecurityBackButton.addEventListener('click', () => applyRoute('admin')); }
   if (adminSecurityExportButton) { adminSecurityExportButton.addEventListener('click', openAdminSecurityExportModal); }
+  if (adminSecurityRunbookButton) { adminSecurityRunbookButton.addEventListener('click', openAdminSecurityRunbookModal); }
   if (adminSecurityExportForm) { adminSecurityExportForm.addEventListener('submit', exportAdminSecurityLog); }
   if (adminSecurityExportCancelButton) { adminSecurityExportCancelButton.addEventListener('click', closeAdminSecurityExportModal); }
   if (adminSecurityExportCloseButton) { adminSecurityExportCloseButton.addEventListener('click', closeAdminSecurityExportModal); }
+  if (adminSecurityRunbookCloseButton) { adminSecurityRunbookCloseButton.addEventListener('click', closeAdminSecurityRunbookModal); }
+  if (adminSecurityRunbookOkButton) { adminSecurityRunbookOkButton.addEventListener('click', closeAdminSecurityRunbookModal); }
+  [adminSecuritySearch, adminSecurityActionFilter, adminSecurityDateFrom, adminSecurityDateTo].forEach((input) => {
+    input?.addEventListener('input', renderFilteredSecurityEvents);
+    input?.addEventListener('change', renderFilteredSecurityEvents);
+  });
   if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {
     profileDetailsForm.addEventListener('submit', saveProfileDetails);
@@ -7010,6 +7123,14 @@ async function init() {
   }
   if (profileSchoolRequestButton) { profileSchoolRequestButton.addEventListener('click', requestAdditionalSchool); }
   if (profileLogoutOtherSessionsButton) { profileLogoutOtherSessionsButton.addEventListener('click', logoutOtherSessions); }
+  if (profileSessionsList) {
+    profileSessionsList.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-disconnect-session-id]');
+      if (button) {
+        disconnectProfileSession(button.dataset.disconnectSessionId);
+      }
+    });
+  }
   if (profilePasswordForm) {
     profilePasswordForm.addEventListener('submit', changeProfilePassword);
     profilePasswordForm.querySelectorAll('input[type="password"]').forEach((input) => {
