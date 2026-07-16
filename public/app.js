@@ -3595,6 +3595,7 @@ function renderAdminAuditLogFromFilter() {
     permanent_delete_user: 'מחיקת משתמש',
     permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     export_backup: 'הורדת גיבוי',
+    export_backup_notification_failed: 'התראת הורדת גיבוי נכשלה',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
     admin_2fa_setup_started: 'התחלת אימות דו-שלבי',

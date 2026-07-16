@@ -484,6 +484,32 @@ async function sendTwoFactorRecoveryRegenerationMessage(regeneration) {
   });
 }
 
+async function sendBackupExportNotification(user, request) {
+  if (!user?.email) {
+    return false;
+  }
+
+  const details = auditRequestDetails(request);
+  return sendMail({
+    to: user.email,
+    subject: 'בוצעה הורדת גיבוי נתונים ב-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'בוצעה הורדת גיבוי נתונים מחשבון מנהל ב-EduFitScore.',
+      '',
+      `זמן: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+      `כתובת IP: ${details.ip || '-'}`,
+      `דפדפן/מכשיר: ${details.userAgent || '-'}`,
+      '',
+      'אם זו הייתה פעולה שלכם, אין צורך לעשות דבר.',
+      'אם לא ביקשתם להוריד גיבוי, החליפו סיסמה מיד, בדקו פעילות התחברות ושקלו להשבית זמנית גישה מנהלית.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
@@ -1183,6 +1209,14 @@ app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, as
   if (!await ensureCurrentAdminPassword(request, response, 'export_backup')) return;
 
   await logAdminAction(request.authUser.id, null, 'export_backup', auditRequestDetails(request));
+  try {
+    const notified = await sendBackupExportNotification(request.authUser, request);
+    if (!notified) {
+      await logAdminAction(request.authUser.id, null, 'export_backup_notification_failed', auditRequestDetails(request, { reason: 'EMAIL_NOT_SENT' }));
+    }
+  } catch (error) {
+    await logAdminAction(request.authUser.id, null, 'export_backup_notification_failed', auditRequestDetails(request, { reason: error.message || 'EMAIL_FAILED' }));
+  }
   response.json(await exportBackupData());
 });
 
