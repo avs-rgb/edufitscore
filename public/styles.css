@@ -2737,6 +2737,49 @@ p {
   border-color: rgba(31, 111, 235, 0.25);
 }
 
+.admin-security-toolbar {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.admin-security-section-title {
+  margin: 8px 0 0;
+  color: #5a3628;
+  font-size: 1.05rem;
+}
+
+.admin-security-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.admin-security-summary-card {
+  display: grid;
+  gap: 6px;
+  min-height: 74px;
+  align-content: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 250, 245, 0.78);
+  border: 1px solid #ead8ca;
+  color: #5e4335;
+  text-align: right;
+}
+
+.admin-security-summary-card strong {
+  color: #8e563d;
+  font-size: 0.86rem;
+}
+
+.admin-security-summary-card span {
+  color: #3f2d24;
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .admin-security-events-container {
   width: 100%;
   max-width: 100%;
@@ -3215,6 +3258,10 @@ tbody tr:nth-child(5n + 1) {
   .teacher-class-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .admin-security-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 800px) {
@@ -3255,6 +3302,18 @@ tbody tr:nth-child(5n + 1) {
   }
 
   .admin-inactive-user-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-security-toolbar {
+    justify-content: stretch;
+  }
+
+  .admin-security-toolbar .teacher-panel-button {
+    width: 100%;
+  }
+
+  .admin-security-summary {
     grid-template-columns: 1fr;
   }
 

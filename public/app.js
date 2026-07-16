@@ -3573,14 +3573,14 @@ function renderAdminSecuritySummary(summary) {
     ? `פעיל (${Number(summary.twoFactor.recoveryCodeCount || 0)} קודי שחזור)`
     : 'כבוי';
   adminSecuritySummary.innerHTML = `
-    <div class="teacher-summary-card"><strong>אימות דו-שלבי</strong><span>${escapeHtml(twoFactorText)}${summary.twoFactor?.bypassed ? ' - מעקף חירום פעיל' : ''}</span></div>
-    <div class="teacher-summary-card"><strong>סשנים פעילים</strong><span>${Number(summary.sessions?.activeCount || 0)}</span></div>
-    <div class="teacher-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${Number(summary.idleTimeout?.adminMinutes || 0)} דק׳ / משתמש ${Number(summary.idleTimeout?.userMinutes || 0)} דק׳</span></div>
-    <div class="teacher-summary-card"><strong>אימות מחדש</strong><span>${Number(summary.reauth?.windowMinutes || 0)} דקות לפעולות רגישות</span></div>
-    <div class="teacher-summary-card"><strong>כניסה כושלת אחרונה</strong><span>${latestSecurityDate(summary.latest?.failedAdminLogin)}</span></div>
-    <div class="teacher-summary-card"><strong>גיבוי אחרון</strong><span>${latestSecurityDate(summary.latest?.backupExport)}</span></div>
-    <div class="teacher-summary-card"><strong>ייצוא יומן אבטחה</strong><span>${latestSecurityDate(summary.latest?.securityLogExport)}</span></div>
-    <div class="teacher-summary-card"><strong>שינוי סיסמה אחרון</strong><span>${latestSecurityDate(summary.latest?.passwordChange)}</span></div>
+    <div class="admin-security-summary-card"><strong>אימות דו-שלבי</strong><span>${escapeHtml(twoFactorText)}${summary.twoFactor?.bypassed ? ' - מעקף חירום פעיל' : ''}</span></div>
+    <div class="admin-security-summary-card"><strong>סשנים פעילים</strong><span>${Number(summary.sessions?.activeCount || 0)}</span></div>
+    <div class="admin-security-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${Number(summary.idleTimeout?.adminMinutes || 0)} דק׳ / משתמש ${Number(summary.idleTimeout?.userMinutes || 0)} דק׳</span></div>
+    <div class="admin-security-summary-card"><strong>אימות מחדש</strong><span>${Number(summary.reauth?.windowMinutes || 0)} דקות</span></div>
+    <div class="admin-security-summary-card"><strong>כניסה כושלת אחרונה</strong><span>${latestSecurityDate(summary.latest?.failedAdminLogin)}</span></div>
+    <div class="admin-security-summary-card"><strong>גיבוי אחרון</strong><span>${latestSecurityDate(summary.latest?.backupExport)}</span></div>
+    <div class="admin-security-summary-card"><strong>ייצוא יומן אבטחה</strong><span>${latestSecurityDate(summary.latest?.securityLogExport)}</span></div>
+    <div class="admin-security-summary-card"><strong>שינוי סיסמה אחרון</strong><span>${latestSecurityDate(summary.latest?.passwordChange)}</span></div>
   `;
 }
 
@@ -3594,9 +3594,16 @@ function renderSecurityEvents(entries) {
     admin_2fa_recovery_code_used: 'שימוש בקוד שחזור',
     admin_2fa_enabled: 'אימות דו-שלבי הופעל',
     admin_2fa_disabled: 'אימות דו-שלבי כובה',
+    admin_2fa_disable_failed: 'כיבוי אימות נכשל',
+    admin_2fa_recovery_regenerate_requested: 'בקשה לקודי שחזור חדשים',
+    admin_2fa_recovery_regenerate_confirmed: 'יצירת קודי שחזור חדשים',
+    admin_2fa_recovery_regenerate_failed: 'בקשת קודי שחזור נכשלה',
+    admin_2fa_recovery_regenerate_confirm_failed: 'אישור קודי שחזור נכשל',
     password_change: 'שינוי סיסמה',
     reset_password: 'איפוס סיסמה',
     reset_password_failed: 'איפוס סיסמה נכשל',
+    export_backup: 'הורדת גיבוי',
+    export_backup_notification_failed: 'התראת הורדת גיבוי נכשלה',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
     permanent_delete_user: 'מחיקת משתמש',
