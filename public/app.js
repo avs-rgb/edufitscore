@@ -3568,6 +3568,14 @@ function latestSecurityDate(entry) {
   return entry?.createdAt ? formatAdminDateTime(entry.createdAt) : '-';
 }
 
+function formatTimeoutMinutes(minutes) {
+  const value = Number(minutes || 0);
+  if (!value) return '-';
+  if (value % 1440 === 0) return `${value / 1440} ימים`;
+  if (value % 60 === 0) return `${value / 60} שעות`;
+  return `${value} דק׳`;
+}
+
 function renderAdminSecuritySummary(summary) {
   const twoFactorText = summary.twoFactor?.enabled
     ? `פעיל (${Number(summary.twoFactor.recoveryCodeCount || 0)} קודי שחזור)`
@@ -3575,7 +3583,7 @@ function renderAdminSecuritySummary(summary) {
   adminSecuritySummary.innerHTML = `
     <div class="admin-security-summary-card"><strong>אימות דו-שלבי</strong><span>${escapeHtml(twoFactorText)}${summary.twoFactor?.bypassed ? ' - מעקף חירום פעיל' : ''}</span></div>
     <div class="admin-security-summary-card"><strong>סשנים פעילים</strong><span>${Number(summary.sessions?.activeCount || 0)}</span></div>
-    <div class="admin-security-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${Number(summary.idleTimeout?.adminMinutes || 0)} דק׳ / משתמש ${Number(summary.idleTimeout?.userMinutes || 0)} דק׳</span></div>
+    <div class="admin-security-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${formatTimeoutMinutes(summary.idleTimeout?.adminMinutes)} / משתמש ${formatTimeoutMinutes(summary.idleTimeout?.userMinutes)}</span></div>
     <div class="admin-security-summary-card"><strong>אימות מחדש</strong><span>${Number(summary.reauth?.windowMinutes || 0)} דקות</span></div>
     <div class="admin-security-summary-card"><strong>כניסה כושלת אחרונה</strong><span>${latestSecurityDate(summary.latest?.failedAdminLogin)}</span></div>
     <div class="admin-security-summary-card"><strong>גיבוי אחרון</strong><span>${latestSecurityDate(summary.latest?.backupExport)}</span></div>

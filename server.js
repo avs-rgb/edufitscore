@@ -85,8 +85,8 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
 const csrfUnsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 30) * 60 * 1000;
-const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 120) * 60 * 1000;
+const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 4320) * 60 * 1000;
+const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 20160) * 60 * 1000;
 const adminReauthWindowMs = Number(process.env.ADMIN_REAUTH_WINDOW_MINUTES || 5) * 60 * 1000;
 app.set('trust proxy', 1);
 
