@@ -44,12 +44,16 @@ const {
   getAdminTwoFactorState,
   saveAdminTwoFactorSecret,
   enableAdminTwoFactor,
+  replaceAdminTwoFactorRecoveryCodes,
   disableAdminTwoFactor,
   createTwoFactorChallenge,
   getTwoFactorChallenge,
   incrementTwoFactorChallengeAttempts,
   consumeTwoFactorChallenge,
   consumeAdminTwoFactorRecoveryCode,
+  createTwoFactorRecoveryRegenerationToken,
+  getTwoFactorRecoveryRegenerationToken,
+  consumeTwoFactorRecoveryRegenerationToken,
   saveGraphSnapshot,
   getGraphSnapshot,
   logAdminAction,
@@ -105,6 +109,8 @@ const adminPermanentDeleteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 
 const adminPasswordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const twoFactorVerifyRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 8 });
 const twoFactorSetupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 6 });
+const twoFactorRecoveryRegenerationRequestRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
+const twoFactorRecoveryRegenerationConfirmRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -452,6 +458,32 @@ async function sendEmailVerificationMessage(verification) {
   });
 }
 
+async function sendTwoFactorRecoveryRegenerationMessage(regeneration) {
+  if (!regeneration) {
+    return false;
+  }
+
+  const confirmUrl = `${publicBaseUrl}/?twoFactorRecoveryToken=${encodeURIComponent(regeneration.token)}#profile`;
+  return sendMail({
+    to: regeneration.user.email,
+    subject: 'אישור יצירת קודי שחזור חדשים ל-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'התקבלה בקשה ליצור קודי שחזור חדשים לחשבון המנהל ב-EduFitScore.',
+      'אם אתם ביקשתם זאת, פתחו את הקישור הבא ואשרו את יצירת הקודים החדשים:',
+      confirmUrl,
+      '',
+      'הקישור תקף למשך 15 דקות וניתן להשתמש בו פעם אחת בלבד.',
+      'קודי השחזור לא נשלחים בדוא"ל ויוצגו באתר רק לאחר האישור.',
+      '',
+      'אם לא ביקשתם פעולה זו, מומלץ להחליף סיסמה ולבדוק את פעילות ההתחברות.',
+      '',
+      'EduFitScore',
+    ].join('\n'),
+  });
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   const valid = await verifyUserPassword(request.authUser.id, request.body?.currentAdminPassword);
   if (valid) {
@@ -679,6 +711,53 @@ app.post('/api/auth/2fa/disable', twoFactorSetupRateLimit, requireAuth, async (r
   await disableAdminTwoFactor(request.authUser.id);
   await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_disabled', auditRequestDetails(request));
   response.json({ enabled: false });
+});
+
+app.post('/api/auth/2fa/recovery/regenerate/request', twoFactorRecoveryRegenerationRequestRateLimit, requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+  if (!await ensureCurrentAdminPassword(request, response, 'admin_2fa_recovery_regenerate_requested', request.authUser.id)) return;
+
+  const state = await getAdminTwoFactorState(request.authUser.id);
+  if (!state?.enabled) {
+    response.status(400).json({ error: 'TWO_FACTOR_NOT_ENABLED' });
+    return;
+  }
+
+  if (!verifyTotpCode(state.secret, request.body?.code)) {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_recovery_regenerate_failed', auditRequestDetails(request, { reason: 'INVALID_CODE' }));
+    response.status(400).json({ error: 'TWO_FACTOR_INVALID' });
+    return;
+  }
+
+  const regeneration = await createTwoFactorRecoveryRegenerationToken(request.authUser.id, sessionRequestDetails(request));
+  const sent = await sendTwoFactorRecoveryRegenerationMessage(regeneration);
+  if (!sent) {
+    await consumeTwoFactorRecoveryRegenerationToken(regeneration.token);
+    await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_recovery_regenerate_failed', auditRequestDetails(request, { reason: 'EMAIL_NOT_SENT' }));
+    response.status(500).json({ error: 'EMAIL_NOT_SENT' });
+    return;
+  }
+
+  await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_recovery_regenerate_requested', auditRequestDetails(request));
+  response.json({ sent: true, expiresAt: regeneration.expiresAt, email: maskEmail(regeneration.user.email) });
+});
+
+app.post('/api/auth/2fa/recovery/regenerate/confirm', twoFactorRecoveryRegenerationConfirmRateLimit, requireAuth, async (request, response) => {
+  if (!requireGlobalAdmin(request, response)) return;
+
+  const token = String(request.body?.token || '').trim();
+  const regeneration = await getTwoFactorRecoveryRegenerationToken(token);
+  if (!regeneration || regeneration.userId !== request.authUser.id) {
+    await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_recovery_regenerate_confirm_failed', auditRequestDetails(request, { reason: 'INVALID_TOKEN' }));
+    response.status(400).json({ error: 'INVALID_TOKEN' });
+    return;
+  }
+
+  const recoveryCodes = generateRecoveryCodes();
+  await replaceAdminTwoFactorRecoveryCodes(request.authUser.id, recoveryCodes);
+  await consumeTwoFactorRecoveryRegenerationToken(token);
+  await logAdminAction(request.authUser.id, request.authUser.id, 'admin_2fa_recovery_regenerate_confirmed', auditRequestDetails(request));
+  response.json({ recoveryCodes });
 });
 
 app.post('/api/auth/signup', signupRateLimit, async (request, response) => {

@@ -94,8 +94,14 @@ const adminTwoFactorQr = document.querySelector('#admin-2fa-qr');
 const adminTwoFactorSecret = document.querySelector('#admin-2fa-secret');
 const adminTwoFactorVerifyForm = document.querySelector('#admin-2fa-verify-form');
 const adminTwoFactorRecovery = document.querySelector('#admin-2fa-recovery');
+const adminTwoFactorRegenerateRecoveryButton = document.querySelector('#admin-2fa-regenerate-recovery');
 const adminTwoFactorDisableForm = document.querySelector('#admin-2fa-disable-form');
 const adminTwoFactorMessage = document.querySelector('#admin-2fa-message');
+const adminTwoFactorRegenerateModal = document.querySelector('#admin-2fa-regenerate-modal');
+const adminTwoFactorRegenerateCloseButton = document.querySelector('#admin-2fa-regenerate-close');
+const adminTwoFactorRegenerateCancelButton = document.querySelector('#admin-2fa-regenerate-cancel');
+const adminTwoFactorRegenerateForm = document.querySelector('#admin-2fa-regenerate-form');
+const adminTwoFactorRegenerateError = document.querySelector('#admin-2fa-regenerate-error');
 const adminStatusModal = document.querySelector('#admin-status-modal');
 const adminStatusCloseButton = document.querySelector('#admin-status-close');
 const adminStatusCancelButton = document.querySelector('#admin-status-cancel');
@@ -3281,6 +3287,7 @@ function renderAdminTwoFactorStatus(data) {
     : '<p><strong>אימות דו-שלבי כבוי.</strong> מומלץ להפעיל עבור חשבון מנהל גלובלי.</p>';
   adminTwoFactorStartForm.classList.toggle('is-hidden', enabled);
   adminTwoFactorDisableForm.classList.toggle('is-hidden', !enabled);
+  adminTwoFactorRegenerateRecoveryButton.classList.toggle('is-hidden', !enabled);
   adminTwoFactorSetup.classList.add('is-hidden');
   if (!enabled) {
     adminTwoFactorRecovery.classList.add('is-hidden');
@@ -3334,6 +3341,104 @@ async function verifyAdminTwoFactorSetup(event) {
   adminTwoFactorMessage.textContent = 'אימות דו-שלבי הופעל.';
   renderAdminTwoFactorStatus({ enabled: true, recoveryCodeCount: data.recoveryCodes.length });
   adminTwoFactorRecovery.classList.remove('is-hidden');
+  await loadAdminAuditLog();
+}
+
+function openAdminTwoFactorRegenerateModal() {
+  adminTwoFactorRegenerateError.textContent = '';
+  adminTwoFactorRegenerateForm.reset();
+  adminTwoFactorRegenerateModal.classList.remove('is-hidden');
+  adminTwoFactorRegenerateModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminTwoFactorRegenerateModal() {
+  adminTwoFactorRegenerateForm.reset();
+  adminTwoFactorRegenerateError.textContent = '';
+  adminTwoFactorRegenerateModal.classList.add('is-hidden');
+  adminTwoFactorRegenerateModal.setAttribute('aria-hidden', 'true');
+}
+
+async function requestAdminTwoFactorRecoveryRegeneration(event) {
+  event.preventDefault();
+  adminTwoFactorRegenerateError.textContent = '';
+  adminTwoFactorMessage.textContent = '';
+  const payload = Object.fromEntries(new FormData(adminTwoFactorRegenerateForm).entries());
+  const submitButton = event.submitter;
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    const response = await apiFetch('/api/auth/2fa/recovery/regenerate/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      adminTwoFactorRegenerateError.textContent = data.error === 'INVALID_ADMIN_PASSWORD'
+        ? 'סיסמת המנהל שגויה.'
+        : data.error === 'TWO_FACTOR_INVALID'
+          ? 'קוד האימות שגוי.'
+          : data.error === 'EMAIL_NOT_SENT'
+            ? 'לא ניתן לשלוח דוא"ל אישור כרגע.'
+            : 'לא ניתן לשלוח קישור אישור כרגע.';
+      return;
+    }
+    const data = await response.json();
+    closeAdminTwoFactorRegenerateModal();
+    adminTwoFactorMessage.textContent = `נשלח קישור אישור לדוא"ל המנהל${data.email ? ` (${data.email})` : ''}. הקישור תקף לזמן קצר.`;
+    await loadAdminAuditLog();
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+function currentTwoFactorRecoveryRegenerationToken() {
+  const tokenFromQuery = new URLSearchParams(window.location.search).get('twoFactorRecoveryToken');
+  if (tokenFromQuery) {
+    return tokenFromQuery;
+  }
+
+  const hash = window.location.hash || '';
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex === -1) {
+    return '';
+  }
+  return new URLSearchParams(hash.slice(queryIndex + 1)).get('twoFactorRecoveryToken') || '';
+}
+
+async function confirmAdminTwoFactorRecoveryRegeneration() {
+  if (!authUser || authUser.role !== 'admin' || currentEntryMode !== 'profile') {
+    return;
+  }
+  const token = currentTwoFactorRecoveryRegenerationToken();
+  if (!token) {
+    return;
+  }
+
+  adminTwoFactorMessage.textContent = 'מאשרים יצירת קודי שחזור חדשים...';
+  const response = await apiFetch('/api/auth/2fa/recovery/regenerate/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete('twoFactorRecoveryToken');
+  window.history.replaceState({ mode: 'profile' }, '', `${url.pathname}${url.search}#profile`);
+
+  if (!response.ok) {
+    adminTwoFactorMessage.textContent = 'קישור האישור לא תקף או שפג תוקפו.';
+    return;
+  }
+
+  const data = await response.json();
+  adminTwoFactorRecovery.classList.remove('is-hidden');
+  adminTwoFactorRecovery.innerHTML = `
+    <p><strong>קודי שחזור חדשים נוצרו.</strong> שמרו אותם עכשיו. לא ניתן יהיה לראות אותם שוב.</p>
+    <div class="admin-2fa-code-grid">${data.recoveryCodes.map((code) => `<code>${escapeHtml(code)}</code>`).join('')}</div>
+  `;
+  adminTwoFactorMessage.textContent = 'קודי השחזור החדשים פעילים. הקודים הישנים אינם תקפים יותר.';
+  await loadAdminTwoFactorStatus();
   await loadAdminAuditLog();
 }
 
@@ -4326,7 +4431,7 @@ function togglePasswordVisibility(button) {
   button.setAttribute('aria-label', shouldShow ? 'הסתרת סיסמה' : 'הצגת סיסמה');
 }
 
-function fillProfileForm() {
+async function fillProfileForm() {
   if (!authUser || !profileDetailsForm) {
     return;
   }
@@ -4350,7 +4455,8 @@ function fillProfileForm() {
   profileDeactivateForm.classList.toggle('is-hidden', isAdmin);
   profileAdminSecurityPanel?.classList.toggle('is-hidden', !isAdmin);
   if (isAdmin) {
-    loadAdminTwoFactorStatus();
+    await loadAdminTwoFactorStatus();
+    await confirmAdminTwoFactorRecoveryRegeneration();
   }
   loadProfileSessions();
   loadSchoolsForSignup().then(renderProfileSchoolRequestOptions);
@@ -6799,6 +6905,10 @@ async function init() {
   if (adminRestoreUserForm) { adminRestoreUserForm.addEventListener('submit', handleAdminRestoreUser); }
   if (adminTwoFactorStartForm) { adminTwoFactorStartForm.addEventListener('submit', startAdminTwoFactorSetup); }
   if (adminTwoFactorVerifyForm) { adminTwoFactorVerifyForm.addEventListener('submit', verifyAdminTwoFactorSetup); }
+  if (adminTwoFactorRegenerateRecoveryButton) { adminTwoFactorRegenerateRecoveryButton.addEventListener('click', openAdminTwoFactorRegenerateModal); }
+  if (adminTwoFactorRegenerateForm) { adminTwoFactorRegenerateForm.addEventListener('submit', requestAdminTwoFactorRecoveryRegeneration); }
+  if (adminTwoFactorRegenerateCancelButton) { adminTwoFactorRegenerateCancelButton.addEventListener('click', closeAdminTwoFactorRegenerateModal); }
+  if (adminTwoFactorRegenerateCloseButton) { adminTwoFactorRegenerateCloseButton.addEventListener('click', closeAdminTwoFactorRegenerateModal); }
   if (adminTwoFactorDisableForm) { adminTwoFactorDisableForm.addEventListener('submit', disableAdminTwoFactor); }
   if (adminBackupButton) { adminBackupButton.addEventListener('click', openAdminBackupExportModal); }
   if (adminBackupImport) { adminBackupImport.addEventListener('change', () => restoreAdminBackupFromFile(adminBackupImport.files?.[0])); }
