@@ -403,6 +403,13 @@
                 <option value="password">סיסמה וסשנים</option>
                 <option value="danger">מחיקה ושחזור</option>
               </select>
+              <select id="admin-security-severity-filter">
+                <option value="all">כל הרמות</option>
+                <option value="critical">קריטי</option>
+                <option value="high">גבוה</option>
+                <option value="medium">בינוני</option>
+                <option value="low">נמוך</option>
+              </select>
               <input id="admin-security-date-from" type="date" aria-label="מתאריך" />
               <input id="admin-security-date-to" type="date" aria-label="עד תאריך" />
             </div>
@@ -676,7 +683,7 @@
             <input id="admin-backup-confirmation" name="confirmation" type="text" autocomplete="off" required />
             <div id="admin-backup-confirm-error" class="login-error" role="alert" aria-live="polite"></div>
             <div class="teacher-entry-actions">
-              <button type="submit" class="danger-button">ייבוא גיבוי</button>
+              <button type="submit" class="danger-button">בדיקה מקדימה</button>
               <button id="admin-backup-confirm-cancel" type="button" class="back-home-button">ביטול</button>
             </div>
           </form>

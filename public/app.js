@@ -80,6 +80,7 @@ const adminSecuritySummary = document.querySelector('#admin-security-summary');
 const adminSecurityAlerts = document.querySelector('#admin-security-alerts');
 const adminSecuritySearch = document.querySelector('#admin-security-search');
 const adminSecurityActionFilter = document.querySelector('#admin-security-action-filter');
+const adminSecuritySeverityFilter = document.querySelector('#admin-security-severity-filter');
 const adminSecurityDateFrom = document.querySelector('#admin-security-date-from');
 const adminSecurityDateTo = document.querySelector('#admin-security-date-to');
 const adminSecurityExportButton = document.querySelector('#admin-security-export-button');
@@ -373,6 +374,7 @@ let pendingInvalidScoreWarnings = [];
 let pendingAdminStatusChange = null;
 let pendingAdminPasswordReset = null;
 let pendingAdminBackupRestore = null;
+let pendingAdminBackupRestoreCredentials = null;
 let pendingAdminPermanentDelete = null;
 let signupSchools = [];
 let activeHistoryGraphSubject = '';
@@ -380,6 +382,7 @@ let visibleHistoryGraphStudents = new Set();
 let historyGraphSelectionTouched = false;
 let adminAuditEntries = [];
 let adminSecurityEntries = [];
+let adminSecurityPagination = { limit: 25, offset: 0, total: 0 };
 let adminUsersSort = { key: '', direction: 'asc' };
 let pendingTwoFactorChallengeToken = '';
 let teacherEditRosterSnapshot = null;
@@ -3261,6 +3264,7 @@ async function loadAdminOverview() {
   const response = await fetch('/api/admin/overview');
 
   if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
     if (adminSummary) {
       adminSummary.textContent = 'לא ניתן לטעון את אזור הניהול כעת.';
     }
@@ -3277,6 +3281,7 @@ async function loadAdminOverview() {
 async function loadAdminDiagnostics() {
   const response = await fetch('/api/admin/diagnostics');
   if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
     adminDiagnostics.innerHTML = '<p>לא ניתן לטעון אבחון מערכת.</p>';
     return;
   }
@@ -3307,7 +3312,7 @@ function renderAdminTwoFactorStatus(data) {
   const bypassed = Boolean(data.bypassed);
   adminTwoFactorStatus.innerHTML = enabled
     ? `<p><strong>אימות דו-שלבי פעיל.</strong> קודי שחזור זמינים: ${Number(data.recoveryCodeCount || 0)}.</p>${bypassed ? '<p class="login-error">אזהרה: מעקף חירום DISABLE_ADMIN_2FA פעיל ולכן הכניסה לא תבקש קוד.</p>' : ''}`
-    : '<p><strong>אימות דו-שלבי כבוי.</strong> מומלץ להפעיל עבור חשבון מנהל גלובלי.</p>';
+    : '<p><strong>אימות דו-שלבי כבוי.</strong> חובה להפעיל אימות דו-שלבי כדי להשתמש באזור הניהול.</p>';
   adminTwoFactorStartForm.classList.toggle('is-hidden', enabled);
   adminTwoFactorDisableForm.classList.toggle('is-hidden', !enabled);
   adminTwoFactorRecoveryManagement.classList.toggle('is-hidden', !enabled);
@@ -3316,6 +3321,26 @@ function renderAdminTwoFactorStatus(data) {
     adminTwoFactorRecovery.classList.add('is-hidden');
     adminTwoFactorRecovery.innerHTML = '';
   }
+}
+
+async function handleAdminTwoFactorRequired(response) {
+  if (response.status !== 403) return false;
+  let data = {};
+  try {
+    data = await response.clone().json();
+  } catch {
+    data = {};
+  }
+  if (data.error !== 'ADMIN_2FA_REQUIRED') return false;
+  if (adminSummary) {
+    adminSummary.textContent = 'יש להפעיל אימות דו-שלבי כדי להשתמש בניהול.';
+  }
+  applyRoute('profile');
+  setTimeout(() => {
+    adminTwoFactorMessage.textContent = 'יש להפעיל אימות דו-שלבי כדי להשתמש בניהול.';
+    profileAdminSecurityPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+  return true;
 }
 
 async function startAdminTwoFactorSetup(event) {
@@ -3558,21 +3583,41 @@ async function loadAdminAuditLog() {
 
 async function loadAdminSecurityEvents() {
   if (!adminSecurityEvents) return;
-  const response = await fetch('/api/admin/security-events');
+  const params = new URLSearchParams({
+    limit: String(adminSecurityPagination.limit),
+    offset: String(adminSecurityPagination.offset),
+  });
+  const search = String(adminSecuritySearch?.value || '').trim();
+  const group = adminSecurityActionFilter?.value || 'all';
+  const severity = adminSecuritySeverityFilter?.value || 'all';
+  if (search) params.set('q', search);
+  if (group !== 'all') params.set('group', group);
+  if (severity !== 'all') params.set('severity', severity);
+  if (adminSecurityDateFrom?.value) params.set('from', adminSecurityDateFrom.value);
+  if (adminSecurityDateTo?.value) params.set('to', adminSecurityDateTo.value);
+
+  const response = await fetch(`/api/admin/security-events?${params.toString()}`);
   if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
     adminSecurityEvents.innerHTML = '<p>לא ניתן לטעון אירועי אבטחה.</p>';
     return;
   }
   const data = await response.json();
   adminSecurityEntries = data.entries || [];
+  adminSecurityPagination = {
+    limit: Number(data.limit || adminSecurityPagination.limit),
+    offset: Number(data.offset || 0),
+    total: Number(data.total || 0),
+  };
   renderSecurityAlerts(adminSecurityEntries);
-  renderFilteredSecurityEvents();
+  renderSecurityEvents(adminSecurityEntries);
 }
 
 async function loadAdminSecuritySummary() {
   if (!adminSecuritySummary) return;
   const response = await fetch('/api/admin/security-summary');
   if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
     adminSecuritySummary.innerHTML = '<p>לא ניתן לטעון מצב אבטחה.</p>';
     return;
   }
@@ -3608,37 +3653,23 @@ function renderAdminSecuritySummary(summary) {
   `;
 }
 
-function securityActionGroup(action) {
-  if (['admin_login_failed', 'admin_login_alert_sent', 'admin_login_alert_failed', 'admin_login'].includes(action)) return 'login';
-  if (String(action || '').startsWith('admin_2fa_')) return '2fa';
-  if (String(action || '').includes('backup') || String(action || '').includes('export_security')) return 'backup';
-  if (String(action || '').includes('password') || String(action || '').includes('session') || String(action || '').includes('logout')) return 'password';
-  if (String(action || '').includes('delete') || String(action || '').includes('restore')) return 'danger';
-  return 'all';
+function securitySeverityLabel(severity) {
+  return ({ critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך' })[severity] || 'נמוך';
 }
 
-function filteredSecurityEntries() {
-  const search = String(adminSecuritySearch?.value || '').trim().toLowerCase();
-  const group = adminSecurityActionFilter?.value || 'all';
-  const from = adminSecurityDateFrom?.value ? Date.parse(`${adminSecurityDateFrom.value}T00:00:00`) : null;
-  const to = adminSecurityDateTo?.value ? Date.parse(`${adminSecurityDateTo.value}T23:59:59`) : null;
-  return adminSecurityEntries.filter((entry) => {
-    const created = Date.parse(entry.createdAt || '');
-    if (group !== 'all' && securityActionGroup(entry.action) !== group) return false;
-    if (from && Number.isFinite(created) && created < from) return false;
-    if (to && Number.isFinite(created) && created > to) return false;
-    if (!search) return true;
-    const details = entry.details || {};
-    const text = [entry.action, entry.adminEmail, entry.adminName, entry.targetEmail, entry.targetName, details.ip, details.reason, details.email, details.userAgent]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    return text.includes(search);
-  });
+function securitySeverityForAction(action) {
+  const critical = ['restore_backup', 'permanent_delete_user', 'admin_2fa_recovery_code_used'];
+  const high = ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'permanent_delete_user_failed'];
+  const medium = ['admin_login_failed', 'admin_2fa_login_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed', 'export_security_log', 'export_security_log_failed', 'reset_password', 'reset_password_failed'];
+  if (critical.includes(action)) return 'critical';
+  if (high.includes(action)) return 'high';
+  if (medium.includes(action)) return 'medium';
+  return 'low';
 }
 
-function renderFilteredSecurityEvents() {
-  renderSecurityEvents(filteredSecurityEntries());
+function renderSecuritySeverityBadge(entry) {
+  const severity = entry.severity || securitySeverityForAction(entry.action);
+  return `<span class="security-severity-badge severity-${escapeAttr(severity)}">${escapeHtml(securitySeverityLabel(severity))}</span>`;
 }
 
 function renderSecurityAlerts(entries) {
@@ -3652,10 +3683,14 @@ function renderSecurityAlerts(entries) {
     'restore_backup',
     'permanent_delete_user',
   ]);
-  const alerts = entries.filter((entry) => important.has(entry.action)).slice(0, 5);
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  const alerts = entries
+    .filter((entry) => important.has(entry.action) || ['critical', 'high'].includes(entry.severity || securitySeverityForAction(entry.action)))
+    .sort((a, b) => (severityOrder[a.severity || securitySeverityForAction(a.action)] ?? 9) - (severityOrder[b.severity || securitySeverityForAction(b.action)] ?? 9))
+    .slice(0, 5);
   adminSecurityAlerts.innerHTML = alerts.length ? alerts.map((entry) => `
     <article class="admin-security-alert-card">
-      <strong>${escapeHtml(securityActionLabel(entry.action))}</strong>
+      <strong>${renderSecuritySeverityBadge(entry)} ${escapeHtml(securityActionLabel(entry.action))}</strong>
       <span>${formatAdminDateTime(entry.createdAt)}</span>
       <small>${escapeHtml(entry.details?.ip || entry.details?.email || entry.targetEmail || '')}</small>
     </article>
@@ -3703,14 +3738,19 @@ function securityActionLabel(action) {
 }
 
 function renderSecurityEvents(entries) {
+  const start = adminSecurityPagination.total ? adminSecurityPagination.offset + 1 : 0;
+  const end = Math.min(adminSecurityPagination.offset + entries.length, adminSecurityPagination.total);
+  const canPrevious = adminSecurityPagination.offset > 0;
+  const canNext = adminSecurityPagination.offset + adminSecurityPagination.limit < adminSecurityPagination.total;
   adminSecurityEvents.innerHTML = entries.length ? `
     <table class="admin-audit-table">
-      <thead><tr><th>תאריך</th><th>פעולה</th><th>משתמש</th><th>IP</th><th>סיבה</th><th>דפדפן</th></tr></thead>
+      <thead><tr><th>תאריך</th><th>רמה</th><th>פעולה</th><th>משתמש</th><th>IP</th><th>סיבה</th><th>דפדפן</th></tr></thead>
       <tbody>${entries.map((entry) => {
         const userAgent = entry.details?.userAgent || '';
         return `
         <tr data-security-event-id="${escapeAttr(entry.id)}" tabindex="0">
           <td>${formatAdminDateTime(entry.createdAt)}</td>
+          <td>${renderSecuritySeverityBadge(entry)}</td>
           <td>${escapeHtml(securityActionLabel(entry.action))}</td>
           <td>${escapeHtml(entry.targetName || entry.targetEmail || entry.adminName || entry.adminEmail || '-')}</td>
           <td>${escapeHtml(entry.details?.ip || '')}</td>
@@ -3720,7 +3760,25 @@ function renderSecurityEvents(entries) {
       `;
       }).join('')}</tbody>
     </table>
+    <div class="admin-security-pagination">
+      <span>מציג ${start}-${end} מתוך ${adminSecurityPagination.total}</span>
+      <button type="button" class="back-home-button" data-security-page="previous" ${canPrevious ? '' : 'disabled'}>הקודם</button>
+      <button type="button" class="back-home-button" data-security-page="next" ${canNext ? '' : 'disabled'}>הבא</button>
+    </div>
   ` : '<p>אין אירועי אבטחה להצגה.</p>';
+}
+
+function reloadAdminSecurityEventsFromFilters() {
+  adminSecurityPagination.offset = 0;
+  loadAdminSecurityEvents();
+}
+
+function changeAdminSecurityPage(direction) {
+  const nextOffset = direction === 'next'
+    ? adminSecurityPagination.offset + adminSecurityPagination.limit
+    : adminSecurityPagination.offset - adminSecurityPagination.limit;
+  adminSecurityPagination.offset = Math.max(0, nextOffset);
+  loadAdminSecurityEvents();
 }
 
 function openAdminSecurityEventModal(eventId) {
@@ -3731,6 +3789,7 @@ function openAdminSecurityEventModal(eventId) {
   adminSecurityEventDetails.innerHTML = `
     <dl>
       <dt>פעולה</dt><dd>${escapeHtml(securityActionLabel(entry.action))}</dd>
+      <dt>רמת חומרה</dt><dd>${renderSecuritySeverityBadge(entry)}</dd>
       <dt>תאריך</dt><dd>${formatAdminDateTime(entry.createdAt)}</dd>
       <dt>מנהל</dt><dd>${escapeHtml(entry.adminName || entry.adminEmail || '-')}</dd>
       <dt>משתמש יעד</dt><dd>${escapeHtml(entry.targetName || entry.targetEmail || '-')}</dd>
@@ -4016,7 +4075,9 @@ async function restoreAdminBackupFromFile(file) {
 
 function closeAdminBackupConfirmModal() {
   pendingAdminBackupRestore = null;
+  pendingAdminBackupRestoreCredentials = null;
   adminBackupConfirmForm.reset();
+  adminBackupConfirmForm.querySelector('button[type="submit"]').textContent = 'בדיקה מקדימה';
   adminBackupConfirmError.textContent = '';
   adminBackupConfirmModal.classList.add('is-hidden');
   adminBackupConfirmModal.setAttribute('aria-hidden', 'true');
@@ -4041,13 +4102,47 @@ async function confirmAdminBackupRestore(event) {
   if (submitButton) submitButton.disabled = true;
 
   try {
+    if (!pendingAdminBackupRestoreCredentials) {
+      const dryRunResponse = await apiFetch('/api/admin/backup/restore/dry-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          backup: pendingAdminBackupRestore,
+          currentAdminPassword: payload.currentAdminPassword,
+          confirmation: payload.confirmation,
+        }),
+      });
+      const dryRunText = await dryRunResponse.text();
+      let dryRunResult = {};
+      try {
+        dryRunResult = dryRunText ? JSON.parse(dryRunText) : {};
+      } catch {
+        dryRunResult = { details: dryRunText };
+      }
+      if (!dryRunResponse.ok) {
+        throw new Error(dryRunResult.details || dryRunResult.error || dryRunResponse.statusText || 'RESTORE_FAILED');
+      }
+      pendingAdminBackupRestoreCredentials = {
+        currentAdminPassword: payload.currentAdminPassword,
+        confirmation: payload.confirmation,
+      };
+      const summary = dryRunResult.summary || {};
+      openAdminBackupResultModal(`
+        <p><strong>בדיקה מקדימה הושלמה. עדיין לא בוצע ייבוא.</strong></p>
+        ${renderBackupSummary(summary)}
+        <p>כדי לבצע ייבוא סופי, לחצו שוב על "אישור סופי וייבוא".</p>
+      `);
+      adminBackupConfirmForm.querySelector('button[type="submit"]').textContent = 'אישור סופי וייבוא';
+      return;
+    }
+
     const response = await apiFetch('/api/admin/backup/restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         backup: pendingAdminBackupRestore,
-        currentAdminPassword: payload.currentAdminPassword,
-        confirmation: payload.confirmation,
+        currentAdminPassword: pendingAdminBackupRestoreCredentials.currentAdminPassword,
+        confirmation: pendingAdminBackupRestoreCredentials.confirmation,
       }),
     });
 
@@ -4065,10 +4160,7 @@ async function confirmAdminBackupRestore(event) {
     const summary = result.summary || {};
     openAdminBackupResultModal(`
       <p><strong>הגיבוי יובא בהצלחה.</strong></p>
-      <p>משתמשים: ${summary.users ?? '-'}</p>
-      <p>כיתות: ${summary.classes ?? '-'}</p>
-      <p>רשומות היסטוריה: ${summary.historyRecords ?? '-'}</p>
-      <p>קישורי גרפים: ${summary.graphSnapshots ?? '-'}</p>
+      ${renderBackupSummary(summary)}
       <p>אם נותקת, יש להתחבר מחדש.</p>
     `);
     adminRestoreMessage.textContent = 'הגיבוי יובא.';
@@ -4093,6 +4185,20 @@ async function confirmAdminBackupRestore(event) {
       setTimeout(() => { submitButton.disabled = false; }, 600);
     }
   }
+}
+
+function renderBackupSummary(summary = {}) {
+  return `
+    <p>משתמשים: ${summary.users ?? '-'}</p>
+    <p>בתי ספר: ${summary.schools ?? '-'}</p>
+    <p>שיוכי בתי ספר: ${summary.schoolMemberships ?? '-'}</p>
+    <p>טבלאות ציונים: ${summary.schoolScoreTables ?? '-'}</p>
+    <p>כיתות: ${summary.classes ?? '-'}</p>
+    <p>רשומות היסטוריה: ${summary.historyRecords ?? '-'}</p>
+    <p>קישורי גרפים: ${summary.graphSnapshots ?? '-'}</p>
+    <p>אירועי אבטחה: ${summary.auditLogEntries ?? '-'}</p>
+    <p>קודי שחזור 2FA: ${summary.twoFactorRecoveryCodes ?? '-'}</p>
+  `;
 }
 
 function openAdminBackupResultModal(messageHtml) {
@@ -7149,6 +7255,11 @@ async function init() {
   if (adminSecurityEventOkButton) { adminSecurityEventOkButton.addEventListener('click', closeAdminSecurityEventModal); }
   if (adminSecurityEvents) {
     adminSecurityEvents.addEventListener('click', (event) => {
+      const pageButton = event.target.closest('[data-security-page]');
+      if (pageButton) {
+        changeAdminSecurityPage(pageButton.dataset.securityPage);
+        return;
+      }
       const row = event.target.closest('[data-security-event-id]');
       if (row) openAdminSecurityEventModal(row.dataset.securityEventId);
     });
@@ -7161,9 +7272,9 @@ async function init() {
       }
     });
   }
-  [adminSecuritySearch, adminSecurityActionFilter, adminSecurityDateFrom, adminSecurityDateTo].forEach((input) => {
-    input?.addEventListener('input', renderFilteredSecurityEvents);
-    input?.addEventListener('change', renderFilteredSecurityEvents);
+  [adminSecuritySearch, adminSecurityActionFilter, adminSecuritySeverityFilter, adminSecurityDateFrom, adminSecurityDateTo].forEach((input) => {
+    input?.addEventListener('input', reloadAdminSecurityEventsFromFilters);
+    input?.addEventListener('change', reloadAdminSecurityEventsFromFilters);
   });
   if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {

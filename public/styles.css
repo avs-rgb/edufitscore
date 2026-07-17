@@ -2806,9 +2806,41 @@ p {
 
 .admin-security-filters {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, 220px) repeat(2, minmax(130px, 170px));
+  grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(130px, 190px)) repeat(2, minmax(130px, 170px));
   gap: 8px;
   align-items: center;
+}
+
+.security-severity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.severity-critical {
+  background: #7f1d1d;
+  color: #fff7ed;
+}
+
+.severity-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.severity-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.severity-low {
+  background: #e0f2fe;
+  color: #075985;
 }
 
 .admin-security-filters input,
@@ -2902,36 +2934,51 @@ p {
 
 #admin-security-events .admin-audit-table th:nth-child(1),
 #admin-security-events .admin-audit-table td:nth-child(1) {
-  width: 14%;
+  width: 13%;
 }
 
 #admin-security-events .admin-audit-table th:nth-child(2),
 #admin-security-events .admin-audit-table td:nth-child(2) {
-  width: 16%;
+  width: 9%;
 }
 
 #admin-security-events .admin-audit-table th:nth-child(3),
 #admin-security-events .admin-audit-table td:nth-child(3) {
-  width: 18%;
+  width: 15%;
 }
 
 #admin-security-events .admin-audit-table th:nth-child(4),
 #admin-security-events .admin-audit-table td:nth-child(4) {
+  width: 15%;
+}
+
+#admin-security-events .admin-audit-table th:nth-child(5),
+#admin-security-events .admin-audit-table td:nth-child(5) {
   width: 12%;
   direction: ltr;
   text-align: left;
 }
 
-#admin-security-events .admin-audit-table th:nth-child(5),
-#admin-security-events .admin-audit-table td:nth-child(5) {
+#admin-security-events .admin-audit-table th:nth-child(6),
+#admin-security-events .admin-audit-table td:nth-child(6) {
   width: 16%;
 }
 
-#admin-security-events .admin-audit-table th:nth-child(6),
-#admin-security-events .admin-audit-table td:nth-child(6) {
-  width: 24%;
+#admin-security-events .admin-audit-table th:nth-child(7),
+#admin-security-events .admin-audit-table td:nth-child(7) {
+  width: 20%;
   direction: ltr;
   text-align: left;
+}
+
+.admin-security-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  color: #5e4335;
 }
 
 .admin-security-status p,

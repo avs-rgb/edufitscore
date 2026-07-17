@@ -58,8 +58,10 @@ const {
   getGraphSnapshot,
   logAdminAction,
   listAdminAuditLog,
+  listAdminAuditLogFiltered,
   countRecentAdminAuditActions,
   exportBackupData,
+  summarizeBackupData,
   restoreBackupData,
   getAdminDiagnostics,
   createSession,
@@ -118,6 +120,55 @@ const twoFactorVerifyRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000,
 const twoFactorSetupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 6 });
 const twoFactorRecoveryRegenerationRequestRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const twoFactorRecoveryRegenerationConfirmRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const securityEventActions = new Set([
+  'admin_login_failed',
+  'admin_login_alert_sent',
+  'admin_login_alert_failed',
+  'admin_reauth_success',
+  'admin_2fa_login_failed',
+  'admin_2fa_recovery_code_used',
+  'admin_2fa_recovery_code_alert_sent',
+  'admin_2fa_recovery_code_alert_failed',
+  'admin_2fa_enabled',
+  'admin_2fa_disabled',
+  'admin_2fa_disable_failed',
+  'admin_2fa_recovery_regenerate_requested',
+  'admin_2fa_recovery_regenerate_confirmed',
+  'admin_2fa_recovery_regenerate_failed',
+  'admin_2fa_recovery_regenerate_confirm_failed',
+  'password_change',
+  'admin_password_change_alert_sent',
+  'admin_password_change_alert_failed',
+  'reset_password',
+  'reset_password_failed',
+  'export_backup',
+  'export_backup_notification_failed',
+  'export_security_log',
+  'export_security_log_failed',
+  'restore_backup',
+  'restore_backup_failed',
+  'restore_backup_alert_sent',
+  'restore_backup_alert_failed',
+  'permanent_delete_user',
+  'permanent_delete_user_failed',
+  'logout_other_sessions',
+  'logout_session',
+  'logout_other_sessions_after_password_change',
+  'session_idle_timeout',
+]);
+const securityEventGroups = {
+  login: ['admin_login_failed', 'admin_login_alert_sent', 'admin_login_alert_failed', 'admin_reauth_success', 'admin_2fa_login_failed', 'admin_2fa_recovery_code_used'],
+  '2fa': ['admin_2fa_login_failed', 'admin_2fa_recovery_code_used', 'admin_2fa_recovery_code_alert_sent', 'admin_2fa_recovery_code_alert_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed'],
+  backup: ['export_backup', 'export_backup_notification_failed', 'export_security_log', 'export_security_log_failed', 'restore_backup', 'restore_backup_failed', 'restore_backup_alert_sent', 'restore_backup_alert_failed'],
+  password: ['password_change', 'admin_password_change_alert_sent', 'admin_password_change_alert_failed', 'reset_password', 'reset_password_failed', 'logout_other_sessions', 'logout_session', 'logout_other_sessions_after_password_change', 'session_idle_timeout'],
+  danger: ['restore_backup', 'restore_backup_failed', 'permanent_delete_user', 'permanent_delete_user_failed'],
+};
+const securityEventSeverities = {
+  critical: ['restore_backup', 'permanent_delete_user', 'admin_2fa_recovery_code_used'],
+  high: ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'permanent_delete_user_failed'],
+  medium: ['admin_login_failed', 'admin_2fa_login_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed', 'export_security_log', 'export_security_log_failed', 'reset_password', 'reset_password_failed'],
+  low: ['admin_reauth_success', 'logout_other_sessions', 'logout_session', 'logout_other_sessions_after_password_change', 'session_idle_timeout', 'admin_login_alert_failed', 'export_backup_notification_failed', 'restore_backup_alert_sent', 'restore_backup_alert_failed', 'admin_password_change_alert_sent', 'admin_password_change_alert_failed', 'admin_2fa_recovery_code_alert_sent', 'admin_2fa_recovery_code_alert_failed'],
+};
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -499,8 +550,41 @@ function requireGlobalAdmin(request, response) {
   return true;
 }
 
+async function requireGlobalAdminReady(request, response) {
+  if (!requireGlobalAdmin(request, response)) return false;
+  if (isAdminTwoFactorBypassed()) return true;
+
+  const state = await getAdminTwoFactorState(request.authUser.id);
+  if (!state?.enabled) {
+    response.status(403).json({ error: 'ADMIN_2FA_REQUIRED' });
+    return false;
+  }
+  return true;
+}
+
 function isAdminTwoFactorBypassed() {
   return String(process.env.DISABLE_ADMIN_2FA || '').toLowerCase() === 'true';
+}
+
+function securitySeverityForAction(action) {
+  return Object.entries(securityEventSeverities).find(([, actions]) => actions.includes(action))?.[0] || 'low';
+}
+
+function securityActionsForQuery(query = {}) {
+  let actions = [...securityEventActions];
+  const group = String(query.group || 'all');
+  const severity = String(query.severity || 'all');
+  if (group !== 'all' && securityEventGroups[group]) {
+    actions = actions.filter((action) => securityEventGroups[group].includes(action));
+  }
+  if (severity !== 'all' && securityEventSeverities[severity]) {
+    actions = actions.filter((action) => securityEventSeverities[severity].includes(action));
+  }
+  return actions;
+}
+
+function addSecuritySeverity(entries) {
+  return entries.map((entry) => ({ ...entry, severity: securitySeverityForAction(entry.action) }));
 }
 
 function normalizeTwoFactorCode(value) {
@@ -1241,11 +1325,8 @@ app.post('/api/auth/deactivate', requireAuth, async (request, response) => {
   }
 });
 
-app.get('/api/admin/overview', requireAuth, (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+app.get('/api/admin/overview', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   response.json({
     user: request.authUser,
@@ -1254,10 +1335,7 @@ app.get('/api/admin/overview', requireAuth, (request, response) => {
 });
 
 app.get('/api/admin/inactive-users', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   response.json({ users: await listInactiveUsers() });
 });
@@ -1419,73 +1497,33 @@ app.post('/api/teacher/school-requests', requireAuth, async (request, response) 
 });
 
 app.get('/api/admin/users', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   response.json({ users: await listUsers() });
 });
 
 app.get('/api/admin/audit-log', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   response.json({ entries: await listAdminAuditLog(50) });
 });
 
 app.get('/api/admin/security-events', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
-  const securityActions = new Set([
-    'admin_login_failed',
-    'admin_login_alert_sent',
-    'admin_login_alert_failed',
-    'admin_reauth_success',
-    'admin_2fa_login_failed',
-    'admin_2fa_recovery_code_used',
-    'admin_2fa_recovery_code_alert_sent',
-    'admin_2fa_recovery_code_alert_failed',
-    'admin_2fa_enabled',
-    'admin_2fa_disabled',
-    'admin_2fa_disable_failed',
-    'admin_2fa_recovery_regenerate_requested',
-    'admin_2fa_recovery_regenerate_confirmed',
-    'admin_2fa_recovery_regenerate_failed',
-    'admin_2fa_recovery_regenerate_confirm_failed',
-    'password_change',
-    'admin_password_change_alert_sent',
-    'admin_password_change_alert_failed',
-    'reset_password',
-    'reset_password_failed',
-    'export_backup',
-    'export_backup_notification_failed',
-    'export_security_log',
-    'export_security_log_failed',
-    'restore_backup',
-    'restore_backup_failed',
-    'restore_backup_alert_sent',
-    'restore_backup_alert_failed',
-    'permanent_delete_user',
-    'permanent_delete_user_failed',
-    'logout_other_sessions',
-    'logout_session',
-    'logout_other_sessions_after_password_change',
-    'session_idle_timeout',
-  ]);
-  const entries = (await listAdminAuditLog(200)).filter((entry) => securityActions.has(entry.action));
-  response.json({ entries });
+  if (!await requireGlobalAdminReady(request, response)) return;
+
+  const result = await listAdminAuditLogFiltered({
+    actions: securityActionsForQuery(request.query),
+    search: request.query.q,
+    from: request.query.from,
+    to: request.query.to,
+    limit: request.query.limit,
+    offset: request.query.offset,
+  });
+  response.json({ ...result, entries: addSecuritySeverity(result.entries) });
 });
 
 app.get('/api/admin/security-summary', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   const [twoFactor, sessions, auditEntries] = await Promise.all([
     getAdminTwoFactorState(request.authUser.id),
@@ -1517,10 +1555,7 @@ app.get('/api/admin/security-summary', requireAuth, async (request, response) =>
 });
 
 app.post('/api/admin/security-events/export', adminSecurityExportRateLimit, requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   if (!await ensureCurrentAdminPassword(request, response, 'export_security_log')) return;
 
@@ -1546,10 +1581,7 @@ app.get('/api/admin/backup', requireAuth, (request, response) => {
 });
 
 app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   if (!await ensureCurrentAdminPassword(request, response, 'export_backup')) return;
 
@@ -1565,11 +1597,29 @@ app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, as
   response.json(await exportBackupData());
 });
 
-app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
+app.post('/api/admin/backup/restore/dry-run', adminRestoreRateLimit, requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
+    await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: 'RESTORE_DISABLED', dryRun: true }));
+    await logBackupRestoreAlert(request.authUser, request, 'blocked', { reason: 'RESTORE_DISABLED', dryRun: true });
+    response.status(403).json({ error: 'RESTORE_DISABLED' });
     return;
   }
+
+  if (!await ensureCurrentAdminPassword(request, response, 'restore_backup')) return;
+  if (!await ensureDeleteConfirmation(request, response, 'restore_backup')) return;
+
+  try {
+    const summary = summarizeBackupData(request.body?.backup);
+    response.json({ ok: true, summary });
+  } catch (error) {
+    response.status(400).json({ error: 'INVALID_BACKUP', details: error.message });
+  }
+});
+
+app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
     await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: 'RESTORE_DISABLED' }));
@@ -1595,19 +1645,13 @@ app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async 
 });
 
 app.get('/api/admin/diagnostics', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   response.json({ diagnostics: await getAdminDiagnostics() });
 });
 
 app.post('/api/admin/restore-user', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   try {
     const user = await restoreUserByEmail(request.body?.email);
@@ -1624,10 +1668,7 @@ app.post('/api/admin/restore-user', requireAuth, async (request, response) => {
 });
 
 app.patch('/api/admin/users/:userId/status', requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   const userId = Number(request.params.userId);
   const isActive = Boolean(request.body?.isActive);
@@ -1652,10 +1693,7 @@ app.patch('/api/admin/users/:userId/status', requireAuth, async (request, respon
 });
 
 app.delete('/api/admin/users/:userId/permanent', adminPermanentDeleteRateLimit, requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   const userId = Number(request.params.userId);
 
@@ -1678,10 +1716,7 @@ app.delete('/api/admin/users/:userId/permanent', adminPermanentDeleteRateLimit, 
 });
 
 app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit, requireAuth, async (request, response) => {
-  if (request.authUser.role !== 'admin') {
-    response.status(403).json({ error: 'Admin access required' });
-    return;
-  }
+  if (!await requireGlobalAdminReady(request, response)) return;
 
   const userId = Number(request.params.userId);
   let { newPassword, newPasswordRepeat, generateTemporary } = request.body || {};
