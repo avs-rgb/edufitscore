@@ -92,6 +92,10 @@ const adminSecurityExportError = document.querySelector('#admin-security-export-
 const adminSecurityRunbookModal = document.querySelector('#admin-security-runbook-modal');
 const adminSecurityRunbookCloseButton = document.querySelector('#admin-security-runbook-close');
 const adminSecurityRunbookOkButton = document.querySelector('#admin-security-runbook-ok');
+const adminSecurityEventModal = document.querySelector('#admin-security-event-modal');
+const adminSecurityEventCloseButton = document.querySelector('#admin-security-event-close');
+const adminSecurityEventOkButton = document.querySelector('#admin-security-event-ok');
+const adminSecurityEventDetails = document.querySelector('#admin-security-event-details');
 const adminSummary = document.querySelector('#admin-summary');
 const adminLogoutButton = document.querySelector('#admin-logout-button');
 const adminRestoreUserForm = document.querySelector('#admin-restore-user-form');
@@ -3684,6 +3688,8 @@ function securityActionLabel(action) {
     export_backup_notification_failed: 'התראת הורדת גיבוי נכשלה',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
+    restore_backup_alert_sent: 'התראת ייבוא גיבוי נשלחה',
+    restore_backup_alert_failed: 'התראת ייבוא גיבוי נכשלה',
     permanent_delete_user: 'מחיקת משתמש',
     permanent_delete_user_failed: 'מחיקת משתמש נכשלה',
     logout_other_sessions: 'ניתוק מכשירים אחרים',
@@ -3703,7 +3709,7 @@ function renderSecurityEvents(entries) {
       <tbody>${entries.map((entry) => {
         const userAgent = entry.details?.userAgent || '';
         return `
-        <tr>
+        <tr data-security-event-id="${escapeAttr(entry.id)}" tabindex="0">
           <td>${formatAdminDateTime(entry.createdAt)}</td>
           <td>${escapeHtml(securityActionLabel(entry.action))}</td>
           <td>${escapeHtml(entry.targetName || entry.targetEmail || entry.adminName || entry.adminEmail || '-')}</td>
@@ -3715,6 +3721,33 @@ function renderSecurityEvents(entries) {
       }).join('')}</tbody>
     </table>
   ` : '<p>אין אירועי אבטחה להצגה.</p>';
+}
+
+function openAdminSecurityEventModal(eventId) {
+  const entry = adminSecurityEntries.find((item) => String(item.id) === String(eventId));
+  if (!entry || !adminSecurityEventDetails) return;
+  const details = entry.details || {};
+  const userAgent = details.userAgent || '';
+  adminSecurityEventDetails.innerHTML = `
+    <dl>
+      <dt>פעולה</dt><dd>${escapeHtml(securityActionLabel(entry.action))}</dd>
+      <dt>תאריך</dt><dd>${formatAdminDateTime(entry.createdAt)}</dd>
+      <dt>מנהל</dt><dd>${escapeHtml(entry.adminName || entry.adminEmail || '-')}</dd>
+      <dt>משתמש יעד</dt><dd>${escapeHtml(entry.targetName || entry.targetEmail || '-')}</dd>
+      <dt>IP</dt><dd>${escapeHtml(details.ip || '-')}</dd>
+      <dt>דפדפן</dt><dd>${escapeHtml(formatSessionDevice(userAgent))}</dd>
+      <dt>נתיב</dt><dd>${escapeHtml(details.path || '-')}</dd>
+      <dt>סיבה</dt><dd>${escapeHtml(details.reason || '-')}</dd>
+    </dl>
+    <pre>${escapeHtml(JSON.stringify(details, null, 2))}</pre>
+  `;
+  adminSecurityEventModal.classList.remove('is-hidden');
+  adminSecurityEventModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminSecurityEventModal() {
+  adminSecurityEventModal.classList.add('is-hidden');
+  adminSecurityEventModal.setAttribute('aria-hidden', 'true');
 }
 
 function openAdminSecurityExportModal() {
@@ -3810,6 +3843,8 @@ function renderAdminAuditLogFromFilter() {
     session_idle_timeout: 'ניתוק עקב חוסר פעילות',
     restore_backup: 'ייבוא גיבוי',
     restore_backup_failed: 'ייבוא גיבוי נכשל',
+    restore_backup_alert_sent: 'התראת ייבוא גיבוי נשלחה',
+    restore_backup_alert_failed: 'התראת ייבוא גיבוי נכשלה',
     admin_2fa_setup_started: 'התחלת אימות דו-שלבי',
     admin_2fa_setup_started_failed: 'התחלת אימות נכשלה',
     admin_2fa_setup_failed: 'הפעלת אימות נכשלה',
@@ -7110,6 +7145,22 @@ async function init() {
   if (adminSecurityExportCloseButton) { adminSecurityExportCloseButton.addEventListener('click', closeAdminSecurityExportModal); }
   if (adminSecurityRunbookCloseButton) { adminSecurityRunbookCloseButton.addEventListener('click', closeAdminSecurityRunbookModal); }
   if (adminSecurityRunbookOkButton) { adminSecurityRunbookOkButton.addEventListener('click', closeAdminSecurityRunbookModal); }
+  if (adminSecurityEventCloseButton) { adminSecurityEventCloseButton.addEventListener('click', closeAdminSecurityEventModal); }
+  if (adminSecurityEventOkButton) { adminSecurityEventOkButton.addEventListener('click', closeAdminSecurityEventModal); }
+  if (adminSecurityEvents) {
+    adminSecurityEvents.addEventListener('click', (event) => {
+      const row = event.target.closest('[data-security-event-id]');
+      if (row) openAdminSecurityEventModal(row.dataset.securityEventId);
+    });
+    adminSecurityEvents.addEventListener('keydown', (event) => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      const row = event.target.closest('[data-security-event-id]');
+      if (row) {
+        event.preventDefault();
+        openAdminSecurityEventModal(row.dataset.securityEventId);
+      }
+    });
+  }
   [adminSecuritySearch, adminSecurityActionFilter, adminSecurityDateFrom, adminSecurityDateTo].forEach((input) => {
     input?.addEventListener('input', renderFilteredSecurityEvents);
     input?.addEventListener('change', renderFilteredSecurityEvents);

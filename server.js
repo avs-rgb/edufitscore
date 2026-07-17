@@ -697,6 +697,45 @@ async function sendAdminPasswordChangeAlert(user, request, revokedOtherSessions)
   });
 }
 
+async function sendBackupRestoreAttemptNotification(user, request, status, details = {}) {
+  if (!user?.email) return false;
+  const requestDetails = auditRequestDetails(request);
+  const summary = details.summary
+    ? `משתמשים: ${details.summary.users ?? '-'}, כיתות: ${details.summary.classes ?? '-'}, רשומות היסטוריה: ${details.summary.historyRecords ?? '-'}`
+    : '';
+  return sendMail({
+    to: user.email,
+    subject: 'התראת ייבוא גיבוי ב-EduFitScore',
+    text: [
+      'שלום,',
+      '',
+      'זוהתה פעולה הקשורה לייבוא גיבוי בחשבון מנהל.',
+      '',
+      `סטטוס: ${status}`,
+      `זמן: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
+      `כתובת IP: ${requestDetails.ip || '-'}`,
+      `דפדפן/מכשיר: ${requestDetails.userAgent || '-'}`,
+      details.reason ? `סיבה: ${details.reason}` : '',
+      summary ? `סיכום: ${summary}` : '',
+      '',
+      'אם זו לא הייתה פעולה שלכם, החליפו סיסמה, נתקו מכשירים אחרים ובדקו את יומן האבטחה.',
+      '',
+      'EduFitScore',
+    ].filter((line) => line !== '').join('\n'),
+  });
+}
+
+async function logBackupRestoreAlert(user, request, status, details = {}) {
+  try {
+    const sent = await sendBackupRestoreAttemptNotification(user, request, status, details);
+    await logAdminAction(user.id, null, sent ? 'restore_backup_alert_sent' : 'restore_backup_alert_failed', auditRequestDetails(request, sent
+      ? { status, ...details }
+      : { status, reason: 'EMAIL_NOT_SENT', ...details }));
+  } catch (error) {
+    await logAdminAction(user.id, null, 'restore_backup_alert_failed', auditRequestDetails(request, { status, reason: error.message || 'EMAIL_FAILED', ...details }));
+  }
+}
+
 async function ensureCurrentAdminPassword(request, response, action, targetUserId = null) {
   if (validAdminReauthToken(request.cookies?.edufitscore_admin_reauth, request.authUser.id)) {
     return true;
@@ -1429,6 +1468,8 @@ app.get('/api/admin/security-events', requireAuth, async (request, response) => 
     'export_security_log_failed',
     'restore_backup',
     'restore_backup_failed',
+    'restore_backup_alert_sent',
+    'restore_backup_alert_failed',
     'permanent_delete_user',
     'permanent_delete_user_failed',
     'logout_other_sessions',
@@ -1532,6 +1573,7 @@ app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async 
 
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
     await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: 'RESTORE_DISABLED' }));
+    await logBackupRestoreAlert(request.authUser, request, 'blocked', { reason: 'RESTORE_DISABLED' });
     response.status(403).json({ error: 'RESTORE_DISABLED' });
     return;
   }
@@ -1542,10 +1584,12 @@ app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async 
   try {
     const summary = await restoreBackupData(request.body?.backup, request.authUser.id);
     await logAdminAction(request.authUser.id, null, 'restore_backup', auditRequestDetails(request, { summary }));
+    await logBackupRestoreAlert(request.authUser, request, 'succeeded', { summary });
     response.json({ ok: true, summary });
   } catch (error) {
     console.error('Backup restore failed:', error);
     await logAdminAction(request.authUser.id, null, 'restore_backup_failed', auditRequestDetails(request, { reason: error.message || 'INVALID_BACKUP' }));
+    await logBackupRestoreAlert(request.authUser, request, 'failed', { reason: error.message || 'INVALID_BACKUP' });
     response.status(400).json({ error: 'INVALID_BACKUP', details: error.message });
   }
 });

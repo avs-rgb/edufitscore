@@ -2837,6 +2837,41 @@ p {
   margin: 6px 0;
 }
 
+.admin-security-event-details {
+  display: grid;
+  gap: 12px;
+  color: #5e4335;
+}
+
+.admin-security-event-details dl {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.admin-security-event-details dt {
+  font-weight: 800;
+  color: #8e563d;
+}
+
+.admin-security-event-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-security-event-details pre {
+  max-height: 220px;
+  overflow: auto;
+  direction: ltr;
+  text-align: left;
+  background: #fff6ed;
+  border: 1px solid #ead8ca;
+  border-radius: 12px;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
 .admin-security-events-container {
   width: 100%;
   max-width: 100%;
@@ -2852,6 +2887,17 @@ p {
 #admin-security-events .admin-audit-table td {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+#admin-security-events .admin-audit-table tbody tr {
+  cursor: pointer;
+}
+
+#admin-security-events .admin-audit-table tbody tr:focus,
+#admin-security-events .admin-audit-table tbody tr:hover {
+  outline: 2px solid rgba(142, 86, 61, 0.28);
+  outline-offset: -2px;
+  background: #fff6ed;
 }
 
 #admin-security-events .admin-audit-table th:nth-child(1),
