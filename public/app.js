@@ -3789,7 +3789,6 @@ function openAdminSecurityEventModal(eventId) {
   adminSecurityEventDetails.innerHTML = `
     <dl>
       <dt>פעולה</dt><dd>${escapeHtml(securityActionLabel(entry.action))}</dd>
-      <dt>רמת חומרה</dt><dd>${renderSecuritySeverityBadge(entry)}</dd>
       <dt>תאריך</dt><dd>${formatAdminDateTime(entry.createdAt)}</dd>
       <dt>מנהל</dt><dd>${escapeHtml(entry.adminName || entry.adminEmail || '-')}</dd>
       <dt>משתמש יעד</dt><dd>${escapeHtml(entry.targetName || entry.targetEmail || '-')}</dd>
