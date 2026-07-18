@@ -3690,7 +3690,7 @@ function renderSecurityAlerts(entries) {
     .slice(0, 5);
   adminSecurityAlerts.innerHTML = alerts.length ? alerts.map((entry) => `
     <article class="admin-security-alert-card">
-      <strong>${renderSecuritySeverityBadge(entry)} ${escapeHtml(securityActionLabel(entry.action))}</strong>
+      <strong>${escapeHtml(securityActionLabel(entry.action))}</strong>
       <span>${formatAdminDateTime(entry.createdAt)}</span>
       <small>${escapeHtml(entry.details?.ip || entry.details?.email || entry.targetEmail || '')}</small>
     </article>
