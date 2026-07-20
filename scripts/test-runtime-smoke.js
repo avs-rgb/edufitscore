@@ -49,6 +49,9 @@ async function main() {
     const accessSettings = await fetchWithRetry(`${baseUrl}/api/admin/access-settings`);
     assert.strictEqual(accessSettings.status, 401, 'admin access settings should require authentication');
 
+    const monitoring = await fetchWithRetry(`${baseUrl}/api/admin/security-monitoring`);
+    assert.strictEqual(monitoring.status, 401, 'admin security monitoring should require authentication');
+
     console.log('runtime smoke tests passed');
   } finally {
     child.kill();

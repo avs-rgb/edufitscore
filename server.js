@@ -682,6 +682,28 @@ function addSecuritySeverity(entries) {
   return entries.map((entry) => ({ ...entry, severity: securitySeverityForAction(entry.action) }));
 }
 
+function countActionsSince(entries, actions, sinceMs) {
+  const actionSet = new Set(actions);
+  return entries.filter((entry) => actionSet.has(entry.action) && Date.parse(entry.createdAt || '') >= sinceMs).length;
+}
+
+function securityMonitoringSummary(entries) {
+  const now = Date.now();
+  const windows = { last24h: now - (24 * 60 * 60 * 1000), last7d: now - (7 * 24 * 60 * 60 * 1000) };
+  const metrics = {
+    failedAdminLogins: ['admin_login_failed'],
+    adminLockouts: ['admin_login_locked'],
+    adminAccessBlocks: ['admin_access_blocked'],
+    backupExports: ['export_backup'],
+    restoreAttempts: ['restore_backup', 'restore_backup_failed'],
+    securityLogExports: ['export_security_log'],
+  };
+  return Object.fromEntries(Object.entries(metrics).map(([key, actions]) => [key, {
+    last24h: countActionsSince(entries, actions, windows.last24h),
+    last7d: countActionsSince(entries, actions, windows.last7d),
+  }]));
+}
+
 async function adminLoginLocked(user, request) {
   if (!user || user.role !== 'admin') return false;
   const since = new Date(Date.now() - (6 * 60 * 60 * 1000)).toISOString();
@@ -1700,6 +1722,26 @@ app.get('/api/admin/access-settings', requireAuth, async (request, response) => 
       blockedCountries: 'ADMIN_BLOCKED_COUNTRIES',
       countryHeader: 'ADMIN_COUNTRY_HEADER',
     },
+  });
+});
+
+app.get('/api/admin/security-monitoring', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  const entries = addSecuritySeverity(await listAdminAuditLog(1000));
+  const notableActions = new Set([
+    'admin_login_failed',
+    'admin_login_locked',
+    'admin_access_blocked',
+    'export_backup',
+    'restore_backup',
+    'restore_backup_failed',
+    'export_security_log',
+    'permanent_delete_user',
+  ]);
+  response.json({
+    generatedAt: new Date().toISOString(),
+    metrics: securityMonitoringSummary(entries),
+    latest: entries.filter((entry) => notableActions.has(entry.action)).slice(0, 8),
   });
 });
 

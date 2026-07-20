@@ -36,9 +36,27 @@ function testCspHardening() {
 
 function testTrustedCountryHeader() {
   const server = read('server.js');
+  const runbook = read('SECURITY_RUNBOOK.md');
   assert(server.includes('ADMIN_COUNTRY_HEADER'), 'country header should be configurable');
   assert(server.includes("'cf-ipcountry'"), 'country filtering should default to Cloudflare country header');
   assert(!server.includes("request.get('x-country-code')"), 'generic spoofable country header must not be trusted by default');
+  assert(runbook.includes('ADMIN_ALLOWED_IPS'), 'runbook should document admin IP allowlist');
+  assert(runbook.includes('cf-ipcountry'), 'runbook should document Cloudflare country header setup');
+  assert(runbook.includes('dynamic IP allowlist can lock the admin out'), 'runbook should warn against dynamic IP allowlists');
+}
+
+function testOperationalMonitoring() {
+  const server = read('server.js');
+  const app = read('public/app.js');
+  const html = read('public/index.html');
+  const runbook = read('SECURITY_RUNBOOK.md');
+  assert(server.includes("'/api/admin/security-monitoring'"), 'security monitoring endpoint missing');
+  assert(server.includes('securityMonitoringSummary'), 'security monitoring summary helper missing');
+  assert(server.includes('admin_access_blocked'), 'monitoring should include admin access blocks');
+  assert(app.includes('loadAdminSecurityMonitoring'), 'frontend should load security monitoring');
+  assert(app.includes('/api/admin/security-monitoring'), 'frontend should call security monitoring endpoint');
+  assert(html.includes('admin-security-monitoring'), 'monitoring container missing');
+  assert(runbook.includes('Operational Monitoring'), 'runbook should document operational monitoring');
 }
 
 function testSensitiveRateLimitCoverage() {
@@ -108,6 +126,7 @@ testXssGuards();
 testEncryptedBackupFlowIsStandard();
 testCspHardening();
 testTrustedCountryHeader();
+testOperationalMonitoring();
 testSensitiveRateLimitCoverage();
 testPasswordResetOncePerDaySupport();
 testSessionExpiryOverride();

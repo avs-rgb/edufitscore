@@ -78,6 +78,7 @@ const adminSecurityBackButton = document.querySelector('#admin-security-back');
 const adminSecurityEvents = document.querySelector('#admin-security-events');
 const adminSecuritySummary = document.querySelector('#admin-security-summary');
 const adminAccessSettings = document.querySelector('#admin-access-settings');
+const adminSecurityMonitoring = document.querySelector('#admin-security-monitoring');
 const adminSecurityAlerts = document.querySelector('#admin-security-alerts');
 const adminSecuritySearch = document.querySelector('#admin-security-search');
 const adminSecurityActionFilter = document.querySelector('#admin-security-action-filter');
@@ -1800,6 +1801,7 @@ function applyRoute(mode, replace = false) {
   } else if (mode === 'adminSecurity' && authUser?.role === 'admin') {
     loadAdminSecuritySummary();
     loadAdminAccessSettings();
+    loadAdminSecurityMonitoring();
     loadAdminSecurityEvents();
   } else if (mode === 'schoolAdmin' && authUser?.isSchoolAdmin) {
     loadSchoolAdminOverview();
@@ -3692,6 +3694,17 @@ async function loadAdminAccessSettings() {
   renderAdminAccessSettings(await response.json());
 }
 
+async function loadAdminSecurityMonitoring() {
+  if (!adminSecurityMonitoring) return;
+  const response = await fetch('/api/admin/security-monitoring');
+  if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
+    adminSecurityMonitoring.innerHTML = '<p>לא ניתן לטעון ניטור תפעולי.</p>';
+    return;
+  }
+  renderAdminSecurityMonitoring(await response.json());
+}
+
 function renderAdminAccessSettings(settings) {
   const current = settings.current || {};
   const configured = settings.configured || {};
@@ -3707,7 +3720,42 @@ function renderAdminAccessSettings(settings) {
       <article class="admin-security-summary-card"><strong>מדינות חסומות</strong><span>${blockedCountries.length ? escapeHtml(blockedCountries.join(', ')) : 'לא פעיל'}</span></article>
     </div>
     <p class="admin-access-settings-note">ההגבלה חלה רק על מנהל גלובלי. שינוי הערכים מתבצע במשתני הסביבה: <code>${escapeHtml(settings.env?.allowedIps || 'ADMIN_ALLOWED_IPS')}</code>, <code>${escapeHtml(settings.env?.allowedCountries || 'ADMIN_ALLOWED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.blockedCountries || 'ADMIN_BLOCKED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.countryHeader || 'ADMIN_COUNTRY_HEADER')}</code>.</p>
+    <p class="admin-access-settings-note">רשימת IP מתאימה רק לכתובת קבועה או VPN קבוע. אם ה-IP משתנה, השאירו את <code>${escapeHtml(settings.env?.allowedIps || 'ADMIN_ALLOWED_IPS')}</code> ריק כדי לא לנעול את המנהל מחוץ למערכת.</p>
+    <p class="admin-access-settings-note">סינון מדינות דורש כותרת מדינה אמינה מה-CDN/Proxy, למשל <code>cf-ipcountry</code>. אין להפעיל סינון מדינות לפני שהכותרת מופיעה כאן כ"מדינה נוכחית".</p>
     ${current.countryHeaderPresent ? '' : '<p class="admin-access-settings-note login-error">לא זוהה קוד מדינה מהשרת/CDN. סינון מדינות דורש כותרת אמינה כמו cf-ipcountry או ADMIN_COUNTRY_HEADER שמוגדר במפורש.</p>'}
+  `;
+}
+
+function monitoringMetricCard(label, metric) {
+  return `
+    <article class="admin-security-summary-card">
+      <strong>${escapeHtml(label)}</strong>
+      <span>24 שעות: ${Number(metric?.last24h || 0)} / 7 ימים: ${Number(metric?.last7d || 0)}</span>
+    </article>
+  `;
+}
+
+function renderAdminSecurityMonitoring(data) {
+  const metrics = data.metrics || {};
+  const latest = Array.isArray(data.latest) ? data.latest : [];
+  adminSecurityMonitoring.innerHTML = `
+    <div class="admin-security-summary admin-security-monitoring-grid">
+      ${monitoringMetricCard('כניסות מנהל כושלות', metrics.failedAdminLogins)}
+      ${monitoringMetricCard('נעילות מנהל', metrics.adminLockouts)}
+      ${monitoringMetricCard('חסימות IP/מדינה', metrics.adminAccessBlocks)}
+      ${monitoringMetricCard('ייצואי גיבוי', metrics.backupExports)}
+      ${monitoringMetricCard('ניסיונות שחזור', metrics.restoreAttempts)}
+      ${monitoringMetricCard('ייצואי יומן אבטחה', metrics.securityLogExports)}
+    </div>
+    <p class="admin-access-settings-note">בדיקה תפעולית מומלצת: אפס אירועי נעילה/חסימת גישה בלתי צפויים, וייצואי גיבוי/שחזור רק בזמן תחזוקה מתוכנן.</p>
+    <div class="admin-security-monitoring-latest">
+      ${latest.length ? latest.map((entry) => `
+        <div class="admin-security-alert-card">
+          <strong>${escapeHtml(adminActionLabel(entry.action))}</strong>
+          <small>${escapeHtml(formatAdminDateTime(entry.createdAt))}</small>
+        </div>
+      `).join('') : '<p>אין אירועים תפעוליים חריגים להצגה.</p>'}
+    </div>
   `;
 }
 

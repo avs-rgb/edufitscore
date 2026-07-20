@@ -53,6 +53,26 @@
 - Review admin audit log entries for password resets, backup restores, permanent deletes, and score-table changes.
 - Document what happened, when it started, who was affected, and what was restored or rotated.
 
+## Admin Access Controls
+
+- `ADMIN_ALLOWED_IPS` is an allowlist for global-admin access only. Use it only with a stable office IP or fixed VPN egress IP.
+- If the admin IP changes, keep `ADMIN_ALLOWED_IPS` empty. A dynamic IP allowlist can lock the admin out.
+- `ADMIN_ALLOWED_COUNTRIES` allows only listed ISO country codes, for example `IL`.
+- `ADMIN_BLOCKED_COUNTRIES` blocks listed ISO country codes.
+- Country filtering depends on a trusted proxy/CDN header. The default is Cloudflare `cf-ipcountry`.
+- If a different trusted header is used, set `ADMIN_COUNTRY_HEADER` to that exact header name.
+- Do not trust generic client-supplied country headers. Only use a header injected by Render, Cloudflare, or another trusted proxy/CDN.
+- Before enabling country filtering, open Admin > אבטחה > הגבלת גישה למנהל and verify that `מדינה נוכחית` is detected.
+- After changing any access-control environment variable in Render, redeploy and verify login from an expected admin location.
+
+## Operational Monitoring
+
+- Open Admin > אבטחה > ניטור תפעולי after deploys and during incidents.
+- Review 24-hour and 7-day counts for failed admin logins, admin lockouts, IP/country blocks, backup exports, restore attempts, and security-log exports.
+- Expected routine state is zero unexpected lockouts/access blocks and backup/restore activity only during planned maintenance.
+- If counts rise unexpectedly, export the security log, preserve evidence, rotate relevant secrets, and review admin sessions.
+- Use the latest operational events list to identify the most recent suspicious action and its timestamp.
+
 ## Dangerous Admin Actions
 
 - Backup restore requires current admin password, the `delete` confirmation phrase, CSRF, rate limiting, and the production restore gate.
