@@ -25,7 +25,8 @@ function testEncryptedBackupFlowIsStandard() {
 
 function testCspHardening() {
   const server = read('server.js');
-  assert(server.includes("require-trusted-types-for 'script'"), 'CSP should require Trusted Types for script sinks');
+  assert(server.includes("script-src 'self'"), 'CSP should restrict scripts to self');
+  assert(server.includes("object-src 'none'"), 'CSP should block plugins/objects');
   assert(server.includes('upgrade-insecure-requests'), 'CSP should upgrade insecure requests in production/HTTPS');
 }
 

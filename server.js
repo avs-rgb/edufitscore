@@ -192,7 +192,6 @@ app.use((request, response, next) => {
     "base-uri 'self'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    "require-trusted-types-for 'script'",
   ];
   if (process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://')) {
     csp.push('upgrade-insecure-requests');
