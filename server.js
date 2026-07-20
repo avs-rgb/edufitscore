@@ -40,6 +40,7 @@ const {
   verifyEmailWithToken,
   deleteUnverifiedUser,
   createPasswordResetToken,
+  hasRecentPasswordResetToken,
   resetPasswordWithToken,
   getAdminTwoFactorState,
   saveAdminTwoFactorSecret,
@@ -109,6 +110,13 @@ function createJsonRateLimit(options) {
 const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
 const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const profileUpdateRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
+const profilePasswordRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
+const accountDeactivateRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
+const sessionActionRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 30 });
+const schoolAdminWriteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 30 });
+const teacherWriteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 60 });
+const scoreRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 const emailVerificationRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const adminBackupExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const adminSecurityExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
@@ -174,9 +182,24 @@ const securityEventSeverities = {
   low: ['admin_reauth_success', 'logout_other_sessions', 'logout_session', 'logout_other_sessions_after_password_change', 'session_idle_timeout', 'admin_login_alert_failed', 'export_backup_notification_failed', 'restore_backup_alert_sent', 'restore_backup_alert_failed', 'admin_password_change_alert_sent', 'admin_password_change_alert_failed', 'admin_2fa_recovery_code_alert_sent', 'admin_2fa_recovery_code_alert_failed'],
 };
 app.use((request, response, next) => {
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "require-trusted-types-for 'script'",
+  ];
+  if (process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://')) {
+    csp.push('upgrade-insecure-requests');
+  }
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  response.setHeader('Content-Security-Policy', csp.join('; '));
   response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()');
   response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   if (process.env.NODE_ENV === 'production' || publicBaseUrl.startsWith('https://')) {
@@ -1234,6 +1257,12 @@ app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, re
   const neutralResponse = { ok: true };
 
   try {
+    const resetSince = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString();
+    if (await hasRecentPasswordResetToken(email, resetSince)) {
+      response.json(neutralResponse);
+      return;
+    }
+
     const reset = await createPasswordResetToken(email);
 
     if (reset) {
@@ -1280,7 +1309,7 @@ app.post('/api/auth/reset-password', passwordResetRateLimit, async (request, res
   }
 });
 
-app.post('/api/auth/logout', async (request, response) => {
+app.post('/api/auth/logout', sessionActionRateLimit, async (request, response) => {
   await deleteSession(request.cookies?.edufitscore_session);
   clearAuthCookies(response);
   response.json({ ok: true });
@@ -1290,7 +1319,7 @@ app.get('/api/auth/sessions', requireAuth, async (request, response) => {
   response.json({ sessions: await listUserSessions(request.authUser.id, request.cookies?.edufitscore_session || '') });
 });
 
-app.post('/api/auth/sessions/logout-others', requireAuth, async (request, response) => {
+app.post('/api/auth/sessions/logout-others', sessionActionRateLimit, requireAuth, async (request, response) => {
   const deleted = await deleteOtherUserSessions(request.authUser.id, request.cookies?.edufitscore_session || '');
   if (request.authUser.role === 'admin') {
     await logAdminAction(request.authUser.id, request.authUser.id, 'logout_other_sessions', auditRequestDetails(request, { deleted }));
@@ -1298,7 +1327,7 @@ app.post('/api/auth/sessions/logout-others', requireAuth, async (request, respon
   response.json({ ok: true, deleted });
 });
 
-app.delete('/api/auth/sessions/:sessionId', requireAuth, async (request, response) => {
+app.delete('/api/auth/sessions/:sessionId', sessionActionRateLimit, requireAuth, async (request, response) => {
   const deleted = await deleteUserSessionByPublicId(request.authUser.id, request.params.sessionId, request.cookies?.edufitscore_session || '');
   if (!deleted) {
     response.status(404).json({ error: 'SESSION_NOT_FOUND' });
@@ -1310,7 +1339,7 @@ app.delete('/api/auth/sessions/:sessionId', requireAuth, async (request, respons
   response.json({ ok: true });
 });
 
-app.put('/api/auth/profile', requireAuth, async (request, response) => {
+app.put('/api/auth/profile', profileUpdateRateLimit, requireAuth, async (request, response) => {
   try {
     const user = await updateUserProfile(request.authUser.id, request.body || {});
     response.json({ user });
@@ -1329,7 +1358,7 @@ app.put('/api/auth/profile', requireAuth, async (request, response) => {
   }
 });
 
-app.put('/api/auth/password', requireAuth, async (request, response) => {
+app.put('/api/auth/password', profilePasswordRateLimit, requireAuth, async (request, response) => {
   const { oldPassword, newPassword, newPasswordRepeat } = request.body || {};
 
   if (!newPassword || newPassword !== newPasswordRepeat) {
@@ -1365,7 +1394,7 @@ app.put('/api/auth/password', requireAuth, async (request, response) => {
   }
 });
 
-app.post('/api/auth/deactivate', requireAuth, async (request, response) => {
+app.post('/api/auth/deactivate', accountDeactivateRateLimit, requireAuth, async (request, response) => {
   try {
     await deactivateUser(request.authUser.id, request.body?.password);
     if (request.authUser.role === 'admin') {
@@ -1414,7 +1443,7 @@ app.get('/api/school-admin/score-tables', requireSchoolAdmin, async (request, re
   }
 });
 
-app.patch('/api/school-admin/score-table-settings', requireSchoolAdmin, async (request, response) => {
+app.patch('/api/school-admin/score-table-settings', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     response.json({ settings: await updateSchoolScoreTableSettings(request.authUser.id, request.body || {}) });
   } catch (error) {
@@ -1422,7 +1451,7 @@ app.patch('/api/school-admin/score-table-settings', requireSchoolAdmin, async (r
   }
 });
 
-app.post('/api/school-admin/score-tables', requireSchoolAdmin, async (request, response) => {
+app.post('/api/school-admin/score-tables', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const table = await createSchoolScoreTable(request.authUser.id, request.body || {});
     await logAdminAction(request.authUser.id, null, 'school_score_table_create', auditRequestDetails(request, { tableId: table.id, grade: table.grade, genderGroup: table.genderGroup }));
@@ -1482,7 +1511,7 @@ app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchool
   });
 });
 
-app.put('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async (request, response) => {
+app.put('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const updated = await updateSchoolScoreTable(request.authUser.id, Number(request.params.tableId), request.body || {});
     if (!updated) {
@@ -1495,7 +1524,7 @@ app.put('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async (re
   }
 });
 
-app.delete('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async (request, response) => {
+app.delete('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const deleted = await deleteSchoolScoreTable(request.authUser.id, Number(request.params.tableId));
     if (!deleted) {
@@ -1510,7 +1539,7 @@ app.delete('/api/school-admin/score-tables/:tableId', requireSchoolAdmin, async 
   }
 });
 
-app.patch('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, async (request, response) => {
+app.patch('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const updated = await setSchoolTeacherStatus(request.authUser.id, Number(request.params.membershipId), request.body?.status);
     if (!updated) {
@@ -1523,7 +1552,7 @@ app.patch('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, asy
   }
 });
 
-app.delete('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, async (request, response) => {
+app.delete('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const deleted = await removeSchoolTeacher(request.authUser.id, Number(request.params.membershipId));
     if (!deleted) {
@@ -1536,7 +1565,7 @@ app.delete('/api/school-admin/memberships/:membershipId', requireSchoolAdmin, as
   }
 });
 
-app.post('/api/school-admin/invites', requireSchoolAdmin, async (request, response) => {
+app.post('/api/school-admin/invites', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
   try {
     const invite = await createSchoolInvite(request.authUser.id, request.body || {});
     const inviteUrl = `${publicBaseUrl}/?invite=${encodeURIComponent(invite.token)}#signup`;
@@ -1546,7 +1575,7 @@ app.post('/api/school-admin/invites', requireSchoolAdmin, async (request, respon
   }
 });
 
-app.post('/api/teacher/school-requests', requireAuth, async (request, response) => {
+app.post('/api/teacher/school-requests', teacherWriteRateLimit, requireAuth, async (request, response) => {
   try {
     response.status(201).json({ memberships: await requestTeacherSchool(request.authUser.id, Number(request.body?.schoolId)) });
   } catch (error) {
@@ -1617,6 +1646,27 @@ app.get('/api/admin/security-summary', requireAuth, async (request, response) =>
       securityLogExport: latestAction(['export_security_log']),
       passwordChange: latestAction(['password_change']),
       restoreBackup: latestAction(['restore_backup']),
+    },
+  });
+});
+
+app.get('/api/admin/access-settings', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  response.json({
+    current: {
+      ip: request.ip || '',
+      country: requestCountry(request),
+      countryHeaderPresent: Boolean(requestCountry(request)),
+    },
+    configured: {
+      allowedIpCount: envList('ADMIN_ALLOWED_IPS').length,
+      allowedCountries: envList('ADMIN_ALLOWED_COUNTRIES').map((country) => country.toUpperCase()),
+      blockedCountries: envList('ADMIN_BLOCKED_COUNTRIES').map((country) => country.toUpperCase()),
+    },
+    env: {
+      allowedIps: 'ADMIN_ALLOWED_IPS',
+      allowedCountries: 'ADMIN_ALLOWED_COUNTRIES',
+      blockedCountries: 'ADMIN_BLOCKED_COUNTRIES',
     },
   });
 });
@@ -1850,7 +1900,7 @@ app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (r
   response.json({ history: await listTeacherClassHistory(teacherClass.id) });
 });
 
-app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrAdmin, async (request, response) => {
+app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   const deleted = await deleteTeacherClassHistory(
     request.authUser.id,
     Number(request.params.classId),
@@ -1865,7 +1915,7 @@ app.delete('/api/teacher/classes/:classId/history/:historyId', requireTeacherOrA
   response.json({ ok: true });
 });
 
-app.patch('/api/teacher/classes/:classId/history/:historyId/semester', requireTeacherOrAdmin, async (request, response) => {
+app.patch('/api/teacher/classes/:classId/history/:historyId/semester', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   const updated = await updateTeacherClassHistorySemester(
     request.authUser.id,
     Number(request.params.classId),
@@ -1881,7 +1931,7 @@ app.patch('/api/teacher/classes/:classId/history/:historyId/semester', requireTe
   response.json({ entry: updated });
 });
 
-app.post('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
+app.post('/api/teacher/classes', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   try {
     const created = await createTeacherClass(request.authUser.id, request.body || {});
     response.status(201).json({ teacherClass: created });
@@ -1959,12 +2009,12 @@ app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeac
   });
 });
 
-app.put('/api/teacher/classes/reorder', requireTeacherOrAdmin, async (request, response) => {
+app.put('/api/teacher/classes/reorder', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds.map(Number) : [];
   response.json({ classes: await reorderTeacherClasses(request.authUser.id, orderedIds) });
 });
 
-app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, response) => {
+app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   let updated;
   try {
     updated = await updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
@@ -1984,7 +2034,7 @@ app.put('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, 
   response.json({ teacherClass: updated });
 });
 
-app.delete('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (request, response) => {
+app.delete('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   const deleted = await deleteTeacherClass(request.authUser.id, Number(request.params.classId));
 
   if (!deleted) {
@@ -1995,7 +2045,7 @@ app.delete('/api/teacher/classes/:classId', requireTeacherOrAdmin, async (reques
   response.json({ ok: true });
 });
 
-app.post('/api/score', (request, response) => {
+app.post('/api/score', scoreRateLimit, (request, response) => {
   const { sheetId, values, gender } = request.body || {};
   const sheets = resolveSheets(gender);
   const sheet = sheets.find((item) => item.id === sheetId);
@@ -2038,7 +2088,7 @@ function buildSchoolScoreResponse(table, students) {
   };
 }
 
-app.post('/api/bulk-score', requireAuth, async (request, response) => {
+app.post('/api/bulk-score', scoreRateLimit, requireAuth, async (request, response) => {
   if (!request.authUser.canEnterScores) {
     response.status(403).json({ error: 'SCORE_ACCESS_PENDING_APPROVAL' });
     return;

@@ -77,6 +77,7 @@ const adminSecurityView = document.querySelector('#admin-security-view');
 const adminSecurityBackButton = document.querySelector('#admin-security-back');
 const adminSecurityEvents = document.querySelector('#admin-security-events');
 const adminSecuritySummary = document.querySelector('#admin-security-summary');
+const adminAccessSettings = document.querySelector('#admin-access-settings');
 const adminSecurityAlerts = document.querySelector('#admin-security-alerts');
 const adminSecuritySearch = document.querySelector('#admin-security-search');
 const adminSecurityActionFilter = document.querySelector('#admin-security-action-filter');
@@ -1798,6 +1799,7 @@ function applyRoute(mode, replace = false) {
     loadAdminOverview();
   } else if (mode === 'adminSecurity' && authUser?.role === 'admin') {
     loadAdminSecuritySummary();
+    loadAdminAccessSettings();
     loadAdminSecurityEvents();
   } else if (mode === 'schoolAdmin' && authUser?.isSchoolAdmin) {
     loadSchoolAdminOverview();
@@ -3677,6 +3679,35 @@ async function loadAdminSecuritySummary() {
   }
   const data = await response.json();
   renderAdminSecuritySummary(data);
+}
+
+async function loadAdminAccessSettings() {
+  if (!adminAccessSettings) return;
+  const response = await fetch('/api/admin/access-settings');
+  if (!response.ok) {
+    if (await handleAdminTwoFactorRequired(response)) return;
+    adminAccessSettings.innerHTML = '<p>לא ניתן לטעון הגדרות גישה.</p>';
+    return;
+  }
+  renderAdminAccessSettings(await response.json());
+}
+
+function renderAdminAccessSettings(settings) {
+  const current = settings.current || {};
+  const configured = settings.configured || {};
+  const allowedCountries = configured.allowedCountries || [];
+  const blockedCountries = configured.blockedCountries || [];
+  adminAccessSettings.innerHTML = `
+    <div class="admin-access-settings-grid">
+      <article class="admin-security-summary-card"><strong>IP נוכחי</strong><span>${escapeHtml(current.ip || '-')}</span></article>
+      <article class="admin-security-summary-card"><strong>מדינה נוכחית</strong><span>${escapeHtml(current.country || 'לא זוהתה')}</span></article>
+      <article class="admin-security-summary-card"><strong>כתובות IP מורשות</strong><span>${Number(configured.allowedIpCount || 0) ? `${Number(configured.allowedIpCount)} מוגדרות` : 'לא פעיל'}</span></article>
+      <article class="admin-security-summary-card"><strong>מדינות מותרות</strong><span>${allowedCountries.length ? escapeHtml(allowedCountries.join(', ')) : 'לא פעיל'}</span></article>
+      <article class="admin-security-summary-card"><strong>מדינות חסומות</strong><span>${blockedCountries.length ? escapeHtml(blockedCountries.join(', ')) : 'לא פעיל'}</span></article>
+    </div>
+    <p class="admin-access-settings-note">ההגבלה חלה רק על מנהל גלובלי. שינוי הערכים מתבצע במשתני הסביבה: <code>${escapeHtml(settings.env?.allowedIps || 'ADMIN_ALLOWED_IPS')}</code>, <code>${escapeHtml(settings.env?.allowedCountries || 'ADMIN_ALLOWED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.blockedCountries || 'ADMIN_BLOCKED_COUNTRIES')}</code>.</p>
+    ${current.countryHeaderPresent ? '' : '<p class="admin-access-settings-note login-error">לא זוהה קוד מדינה מהשרת/CDN. סינון מדינות דורש כותרת אמינה כמו cf-ipcountry.</p>'}
+  `;
 }
 
 function latestSecurityDate(entry) {

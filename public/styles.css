@@ -2755,6 +2755,28 @@ p {
   padding: 12px;
 }
 
+.admin-access-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-access-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.admin-access-settings-note {
+  margin: 0;
+  color: #5e4335;
+  line-height: 1.5;
+}
+
+.admin-access-settings-note code {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .admin-security-summary-card {
   display: grid;
   gap: 6px;
