@@ -411,6 +411,60 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
+function bytesToBase64(bytes) {
+  let binary = '';
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(String(value || ''));
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function backupCryptoKey(password, salt, iterations) {
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptBackupPayload(backup, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iterations = 250000;
+  const key = await backupCryptoKey(password, salt, iterations);
+  const plaintext = new TextEncoder().encode(JSON.stringify(backup));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext));
+  return {
+    format: 'edufitscore-encrypted-backup',
+    version: 1,
+    encryptedAt: new Date().toISOString(),
+    kdf: 'PBKDF2-SHA256',
+    iterations,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(ciphertext),
+  };
+}
+
+async function decryptBackupPayload(encryptedBackup, password) {
+  const salt = base64ToBytes(encryptedBackup.salt);
+  const iv = base64ToBytes(encryptedBackup.iv);
+  const ciphertext = base64ToBytes(encryptedBackup.ciphertext);
+  const key = await backupCryptoKey(password, salt, Number(encryptedBackup.iterations || 250000));
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+function isEncryptedBackup(value) {
+  return value?.format === 'edufitscore-encrypted-backup' && value.ciphertext && value.salt && value.iv;
+}
+
 const schoolScoreGradeLabels = {
   1: 'א׳',
   2: 'ב׳',
@@ -3645,6 +3699,8 @@ function renderAdminSecuritySummary(summary) {
     <div class="admin-security-summary-card"><strong>אימות דו-שלבי</strong><span>${escapeHtml(twoFactorText)}${summary.twoFactor?.bypassed ? ' - מעקף חירום פעיל' : ''}</span></div>
     <div class="admin-security-summary-card"><strong>סשנים פעילים</strong><span>${Number(summary.sessions?.activeCount || 0)}</span></div>
     <div class="admin-security-summary-card"><strong>חוסר פעילות</strong><span>מנהל ${formatTimeoutMinutes(summary.idleTimeout?.adminMinutes)} / משתמש ${formatTimeoutMinutes(summary.idleTimeout?.userMinutes)}</span></div>
+    <div class="admin-security-summary-card"><strong>תוקף סשן</strong><span>מנהל ${Number(summary.sessionLifetime?.adminDays || 0)} ימים / משתמש ${Number(summary.sessionLifetime?.userDays || 0)} ימים</span></div>
+    <div class="admin-security-summary-card"><strong>הגבלת גישה</strong><span>${Number(summary.adminNetworkControls?.allowedIps || 0) ? 'IP פעיל' : 'IP כבוי'} / מדינות ${summary.adminNetworkControls?.allowedCountries?.length || summary.adminNetworkControls?.blockedCountries?.length ? 'פעיל' : 'כבוי'}</span></div>
     <div class="admin-security-summary-card"><strong>אימות מחדש</strong><span>${Number(summary.reauth?.windowMinutes || 0)} דקות</span></div>
     <div class="admin-security-summary-card"><strong>כניסה כושלת אחרונה</strong><span>${latestSecurityDate(summary.latest?.failedAdminLogin)}</span></div>
     <div class="admin-security-summary-card"><strong>גיבוי אחרון</strong><span>${latestSecurityDate(summary.latest?.backupExport)}</span></div>
@@ -3659,7 +3715,7 @@ function securitySeverityLabel(severity) {
 
 function securitySeverityForAction(action) {
   const critical = ['restore_backup', 'permanent_delete_user', 'admin_2fa_recovery_code_used'];
-  const high = ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'permanent_delete_user_failed'];
+  const high = ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'admin_login_locked', 'admin_access_blocked', 'permanent_delete_user_failed'];
   const medium = ['admin_login_failed', 'admin_2fa_login_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed', 'export_security_log', 'export_security_log_failed', 'reset_password', 'reset_password_failed'];
   if (critical.includes(action)) return 'critical';
   if (high.includes(action)) return 'high';
@@ -3700,6 +3756,8 @@ function renderSecurityAlerts(entries) {
 function securityActionLabel(action) {
   const actionLabels = {
     admin_login_failed: 'כניסת מנהל נכשלה',
+    admin_login_locked: 'נעילת כניסת מנהל זמנית',
+    admin_access_blocked: 'גישה מנהלית נחסמה',
     admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
     admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
     admin_reauth_success: 'אימות מנהל לפעולה רגישה',
@@ -3880,6 +3938,8 @@ function renderAdminAuditLogFromFilter() {
     disable_user: 'השבתת משתמש',
     restore_user: 'שחזור משתמש',
     admin_login_failed: 'כניסת מנהל נכשלה',
+    admin_login_locked: 'נעילת כניסת מנהל זמנית',
+    admin_access_blocked: 'גישה מנהלית נחסמה',
     admin_login_alert_sent: 'התראת כניסת מנהל נשלחה',
     admin_login_alert_failed: 'התראת כניסת מנהל נכשלה',
     admin_reauth_success: 'אימות מנהל לפעולה רגישה',
@@ -4003,8 +4063,12 @@ function closeAdminBackupExportModal() {
   adminBackupExportModal.setAttribute('aria-hidden', 'true');
 }
 
-async function downloadAdminBackup(currentAdminPassword) {
+async function downloadAdminBackup(currentAdminPassword, backupPassword) {
   adminRestoreMessage.textContent = '';
+  if (!crypto?.subtle) {
+    adminBackupExportError.textContent = 'הדפדפן לא תומך בהצפנת גיבויים.';
+    return;
+  }
   const response = await apiFetch('/api/admin/backup/export', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4023,16 +4087,17 @@ async function downloadAdminBackup(currentAdminPassword) {
   }
 
   const backup = await response.json();
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+  const encryptedBackup = await encryptBackupPayload(backup, backupPassword);
+  const blob = new Blob([JSON.stringify(encryptedBackup, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `edufitscore-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `edufitscore-backup-${new Date().toISOString().slice(0, 10)}.encrypted.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  adminRestoreMessage.textContent = 'הגיבוי הורד.';
+  adminRestoreMessage.textContent = 'הגיבוי המוצפן הורד.';
   closeAdminBackupExportModal();
   await loadAdminAuditLog();
 }
@@ -4041,12 +4106,20 @@ async function confirmAdminBackupExport(event) {
   event.preventDefault();
   const payload = Object.fromEntries(new FormData(adminBackupExportForm).entries());
   adminBackupExportError.textContent = '';
+  if (!payload.backupPassword || payload.backupPassword.length < 12) {
+    adminBackupExportError.textContent = 'סיסמת הגיבוי חייבת לכלול לפחות 12 תווים.';
+    return;
+  }
+  if (payload.backupPassword !== payload.backupPasswordRepeat) {
+    adminBackupExportError.textContent = 'סיסמאות הגיבוי אינן זהות.';
+    return;
+  }
 
   const submitButton = event.submitter;
   if (submitButton) submitButton.disabled = true;
 
   try {
-    await downloadAdminBackup(payload.currentAdminPassword);
+    await downloadAdminBackup(payload.currentAdminPassword, payload.backupPassword);
   } finally {
     if (submitButton) submitButton.disabled = false;
   }
@@ -4063,10 +4136,13 @@ async function restoreAdminBackupFromFile(file) {
     pendingAdminBackupRestore = backup;
     adminBackupConfirmError.textContent = '';
     adminBackupConfirmForm.reset();
+    if (adminBackupConfirmForm.backupPassword) {
+      adminBackupConfirmForm.backupPassword.required = isEncryptedBackup(backup);
+    }
     adminBackupConfirmModal.classList.remove('is-hidden');
     adminBackupConfirmModal.setAttribute('aria-hidden', 'false');
   } catch (error) {
-    openAdminBackupResultModal(`<p><strong>ייבוא הגיבוי נכשל.</strong></p><p>קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.</p><p class="backup-error-details">פרטים: ${error.message}</p>`);
+    openAdminBackupResultModal(`<p><strong>ייבוא הגיבוי נכשל.</strong></p><p>קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.</p><p class="backup-error-details">פרטים: ${escapeHtml(error.message)}</p>`);
     adminRestoreMessage.textContent = 'קובץ הגיבוי לא תקין או שלא ניתן לייבא אותו.';
     adminBackupImport.value = '';
   }
@@ -4092,6 +4168,10 @@ async function confirmAdminBackupRestore(event) {
 
   const payload = Object.fromEntries(new FormData(adminBackupConfirmForm).entries());
   adminBackupConfirmError.textContent = '';
+  if (isEncryptedBackup(pendingAdminBackupRestore) && !payload.backupPassword && !pendingAdminBackupRestoreCredentials) {
+    adminBackupConfirmError.textContent = 'יש להזין סיסמת גיבוי מוצפן.';
+    return;
+  }
   if (String(payload.confirmation || '').trim() !== 'delete') {
     adminBackupConfirmError.textContent = 'יש להקליד delete כדי להמשיך.';
     return;
@@ -4102,11 +4182,20 @@ async function confirmAdminBackupRestore(event) {
 
   try {
     if (!pendingAdminBackupRestoreCredentials) {
+      let backup;
+      try {
+        backup = isEncryptedBackup(pendingAdminBackupRestore)
+          ? await decryptBackupPayload(pendingAdminBackupRestore, payload.backupPassword)
+          : pendingAdminBackupRestore;
+      } catch {
+        adminBackupConfirmError.textContent = 'סיסמת הגיבוי שגויה או שהקובץ אינו תקין.';
+        return;
+      }
       const dryRunResponse = await apiFetch('/api/admin/backup/restore/dry-run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          backup: pendingAdminBackupRestore,
+          backup,
           currentAdminPassword: payload.currentAdminPassword,
           confirmation: payload.confirmation,
         }),
@@ -4124,6 +4213,7 @@ async function confirmAdminBackupRestore(event) {
       pendingAdminBackupRestoreCredentials = {
         currentAdminPassword: payload.currentAdminPassword,
         confirmation: payload.confirmation,
+        backup,
       };
       const summary = dryRunResult.summary || {};
       openAdminBackupResultModal(`
@@ -4139,7 +4229,7 @@ async function confirmAdminBackupRestore(event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        backup: pendingAdminBackupRestore,
+        backup: pendingAdminBackupRestoreCredentials.backup,
         currentAdminPassword: pendingAdminBackupRestoreCredentials.currentAdminPassword,
         confirmation: pendingAdminBackupRestoreCredentials.confirmation,
       }),

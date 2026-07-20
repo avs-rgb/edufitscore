@@ -593,11 +593,25 @@
         <div class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="admin-backup-export-title">
           <button id="admin-backup-export-close" type="button" class="modal-close-button" aria-label="סגירה">X</button>
           <h2 id="admin-backup-export-title">אישור הורדת גיבוי</h2>
-          <p>הגיבוי כולל נתוני משתמשים, כיתות והיסטוריה. יש להזין סיסמת מנהל נוכחית לפני הורדה.</p>
+          <p>הגיבוי כולל נתונים רגישים ולכן יורד כקובץ מוצפן. שמרו את סיסמת הגיבוי במקום בטוח.</p>
           <form id="admin-backup-export-form" class="member-login-form">
             <label class="field-label" for="admin-backup-export-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
               <input id="admin-backup-export-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
+            <label class="field-label" for="admin-backup-export-encryption-password">סיסמת גיבוי</label>
+            <div class="password-field">
+              <input id="admin-backup-export-encryption-password" name="backupPassword" type="password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
+            <label class="field-label" for="admin-backup-export-encryption-password-repeat">אימות סיסמת גיבוי</label>
+            <div class="password-field">
+              <input id="admin-backup-export-encryption-password-repeat" name="backupPasswordRepeat" type="password" autocomplete="new-password" required />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>
@@ -675,6 +689,13 @@
             <label class="field-label" for="admin-backup-current-password">סיסמת מנהל נוכחית (אם לא אומת לאחרונה)</label>
             <div class="password-field">
               <input id="admin-backup-current-password" name="currentAdminPassword" type="password" autocomplete="current-password" />
+              <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
+                <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
+              </button>
+            </div>
+            <label class="field-label" for="admin-backup-encryption-password">סיסמת גיבוי מוצפן</label>
+            <div class="password-field">
+              <input id="admin-backup-encryption-password" name="backupPassword" type="password" autocomplete="current-password" />
               <button type="button" class="password-toggle" aria-label="הצגת סיסמה" aria-pressed="false" data-password-toggle>
                 <svg class="password-toggle-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="3" /><path class="password-toggle-slash" d="M4.5 4.5 19.5 19.5" /></svg>
               </button>

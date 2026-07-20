@@ -88,9 +88,11 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${port}`;
 const csrfUnsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 4320) * 60 * 1000;
-const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 20160) * 60 * 1000;
+const adminIdleTimeoutMs = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES || 720) * 60 * 1000;
+const userIdleTimeoutMs = Number(process.env.USER_IDLE_TIMEOUT_MINUTES || 10080) * 60 * 1000;
 const adminReauthWindowMs = Number(process.env.ADMIN_REAUTH_WINDOW_MINUTES || 5) * 60 * 1000;
+const adminSessionDays = Number(process.env.ADMIN_SESSION_DAYS || 1);
+const userSessionDays = Number(process.env.USER_SESSION_DAYS || 14);
 app.set('trust proxy', 1);
 
 function createJsonRateLimit(options) {
@@ -122,6 +124,8 @@ const twoFactorRecoveryRegenerationRequestRateLimit = createJsonRateLimit({ wind
 const twoFactorRecoveryRegenerationConfirmRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const securityEventActions = new Set([
   'admin_login_failed',
+  'admin_login_locked',
+  'admin_access_blocked',
   'admin_login_alert_sent',
   'admin_login_alert_failed',
   'admin_reauth_success',
@@ -157,7 +161,7 @@ const securityEventActions = new Set([
   'session_idle_timeout',
 ]);
 const securityEventGroups = {
-  login: ['admin_login_failed', 'admin_login_alert_sent', 'admin_login_alert_failed', 'admin_reauth_success', 'admin_2fa_login_failed', 'admin_2fa_recovery_code_used'],
+  login: ['admin_login_failed', 'admin_login_locked', 'admin_access_blocked', 'admin_login_alert_sent', 'admin_login_alert_failed', 'admin_reauth_success', 'admin_2fa_login_failed', 'admin_2fa_recovery_code_used'],
   '2fa': ['admin_2fa_login_failed', 'admin_2fa_recovery_code_used', 'admin_2fa_recovery_code_alert_sent', 'admin_2fa_recovery_code_alert_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed'],
   backup: ['export_backup', 'export_backup_notification_failed', 'export_security_log', 'export_security_log_failed', 'restore_backup', 'restore_backup_failed', 'restore_backup_alert_sent', 'restore_backup_alert_failed'],
   password: ['password_change', 'admin_password_change_alert_sent', 'admin_password_change_alert_failed', 'reset_password', 'reset_password_failed', 'logout_other_sessions', 'logout_session', 'logout_other_sessions_after_password_change', 'session_idle_timeout'],
@@ -165,7 +169,7 @@ const securityEventGroups = {
 };
 const securityEventSeverities = {
   critical: ['restore_backup', 'permanent_delete_user', 'admin_2fa_recovery_code_used'],
-  high: ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'permanent_delete_user_failed'],
+  high: ['restore_backup_failed', 'export_backup', 'password_change', 'admin_login_alert_sent', 'admin_login_locked', 'admin_access_blocked', 'permanent_delete_user_failed'],
   medium: ['admin_login_failed', 'admin_2fa_login_failed', 'admin_2fa_enabled', 'admin_2fa_disabled', 'admin_2fa_disable_failed', 'admin_2fa_recovery_regenerate_requested', 'admin_2fa_recovery_regenerate_confirmed', 'admin_2fa_recovery_regenerate_failed', 'admin_2fa_recovery_regenerate_confirm_failed', 'export_security_log', 'export_security_log_failed', 'reset_password', 'reset_password_failed'],
   low: ['admin_reauth_success', 'logout_other_sessions', 'logout_session', 'logout_other_sessions_after_password_change', 'session_idle_timeout', 'admin_login_alert_failed', 'export_backup_notification_failed', 'restore_backup_alert_sent', 'restore_backup_alert_failed', 'admin_password_change_alert_sent', 'admin_password_change_alert_failed', 'admin_2fa_recovery_code_alert_sent', 'admin_2fa_recovery_code_alert_failed'],
 };
@@ -550,8 +554,46 @@ function requireGlobalAdmin(request, response) {
   return true;
 }
 
+function envList(name) {
+  return String(process.env[name] || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function requestCountry(request) {
+  return String(request.get('cf-ipcountry') || request.get('x-vercel-ip-country') || request.get('x-country-code') || '').trim().toUpperCase();
+}
+
+function ipMatchesAllowed(requestIp, allowedIp) {
+  const ip = String(requestIp || '').replace(/^::ffff:/, '');
+  const allowed = String(allowedIp || '').replace(/^::ffff:/, '');
+  return ip === allowed;
+}
+
+async function ensureAdminNetworkAllowed(request, response) {
+  const allowedIps = envList('ADMIN_ALLOWED_IPS');
+  const allowedCountries = envList('ADMIN_ALLOWED_COUNTRIES').map((country) => country.toUpperCase());
+  const blockedCountries = envList('ADMIN_BLOCKED_COUNTRIES').map((country) => country.toUpperCase());
+  const ip = request.ip || '';
+  const country = requestCountry(request);
+
+  let reason = '';
+  if (allowedIps.length && !allowedIps.some((allowedIp) => ipMatchesAllowed(ip, allowedIp))) {
+    reason = 'IP_NOT_ALLOWED';
+  } else if (country && blockedCountries.includes(country)) {
+    reason = 'COUNTRY_BLOCKED';
+  } else if (allowedCountries.length && (!country || !allowedCountries.includes(country))) {
+    reason = 'COUNTRY_NOT_ALLOWED';
+  }
+
+  if (!reason) return true;
+
+  await logAdminAction(request.authUser?.id || null, request.authUser?.id || null, 'admin_access_blocked', auditRequestDetails(request, { reason, country }));
+  response.status(403).json({ error: 'ADMIN_ACCESS_BLOCKED' });
+  return false;
+}
+
 async function requireGlobalAdminReady(request, response) {
   if (!requireGlobalAdmin(request, response)) return false;
+  if (!await ensureAdminNetworkAllowed(request, response)) return false;
   if (isAdminTwoFactorBypassed()) return true;
 
   const state = await getAdminTwoFactorState(request.authUser.id);
@@ -585,6 +627,16 @@ function securityActionsForQuery(query = {}) {
 
 function addSecuritySeverity(entries) {
   return entries.map((entry) => ({ ...entry, severity: securitySeverityForAction(entry.action) }));
+}
+
+async function adminLoginLocked(user, request) {
+  if (!user || user.role !== 'admin') return false;
+  const since = new Date(Date.now() - (6 * 60 * 60 * 1000)).toISOString();
+  const failedAttempts = await countRecentAdminAuditActions('admin_login_failed', { email: user.email }, since);
+  if (failedAttempts < 5) return false;
+
+  await logAdminAction(user.id, user.id, 'admin_login_locked', auditRequestDetails(request, { email: user.email, failedAttempts, windowHours: 6 }));
+  return true;
 }
 
 function normalizeTwoFactorCode(value) {
@@ -927,6 +979,13 @@ app.get('/api/schools/:schoolId/score-tables', async (request, response) => {
 app.post('/api/auth/login', authRateLimit, async (request, response) => {
   const { email, password } = request.body || {};
   let user;
+  const auditEmail = String(email || '').trim().toLowerCase();
+  const existing = await findUserForSecurityAudit(auditEmail);
+
+  if (existing?.role === 'admin' && await adminLoginLocked(existing, request)) {
+    response.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
 
   try {
     user = await verifyUser(email, password);
@@ -940,7 +999,6 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
 
   if (!user) {
     try {
-      const existing = await findUserForSecurityAudit(String(email || '').trim().toLowerCase());
       if (existing?.role === 'admin') {
         await logAdminAction(existing.id, existing.id, 'admin_login_failed', auditRequestDetails(request, { email: existing.email, reason: existing.isActive ? 'INVALID_CREDENTIALS' : 'INACTIVE_ACCOUNT' }));
         await maybeAlertSuspiciousAdminLogin(existing, request);
@@ -961,7 +1019,7 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
     }
   }
 
-  const session = await createSession(user.id, sessionRequestDetails(request));
+  const session = await createSession(user.id, { ...sessionRequestDetails(request), expiresInDays: user.role === 'admin' ? adminSessionDays : userSessionDays });
   setAuthCookies(response, session);
   if (user.role === 'admin') {
     await logAdminAction(user.id, user.id, 'admin_login', auditRequestDetails(request, { email: user.email }));
@@ -990,7 +1048,7 @@ app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request,
   }
 
   await consumeTwoFactorChallenge(challengeToken);
-  const session = await createSession(challenge.userId, sessionRequestDetails(request));
+  const session = await createSession(challenge.userId, { ...sessionRequestDetails(request), expiresInDays: adminSessionDays });
   setAuthCookies(response, session);
   const user = await findUserBySessionToken(session.token);
   await logAdminAction(challenge.userId, challenge.userId, usedRecoveryCode ? 'admin_2fa_recovery_code_used' : 'admin_2fa_login_success', auditRequestDetails(request));
@@ -1542,6 +1600,15 @@ app.get('/api/admin/security-summary', requireAuth, async (request, response) =>
     idleTimeout: {
       adminMinutes: Math.round(adminIdleTimeoutMs / 60000),
       userMinutes: Math.round(userIdleTimeoutMs / 60000),
+    },
+    sessionLifetime: {
+      adminDays: adminSessionDays,
+      userDays: userSessionDays,
+    },
+    adminNetworkControls: {
+      allowedIps: envList('ADMIN_ALLOWED_IPS').length,
+      allowedCountries: envList('ADMIN_ALLOWED_COUNTRIES').map((country) => country.toUpperCase()),
+      blockedCountries: envList('ADMIN_BLOCKED_COUNTRIES').map((country) => country.toUpperCase()),
     },
     reauth: { windowMinutes: Math.round(adminReauthWindowMs / 60000) },
     latest: {
