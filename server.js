@@ -61,6 +61,7 @@ const {
   listAdminAuditLog,
   listAdminAuditLogFiltered,
   countRecentAdminAuditActions,
+  incrementRateLimit,
   exportBackupData,
   summarizeBackupData,
   restoreBackupData,
@@ -107,9 +108,28 @@ function createJsonRateLimit(options) {
   });
 }
 
+function createDbRateLimit({ windowMs, limit, keyPrefix }) {
+  return async (request, response, next) => {
+    try {
+      const key = `${keyPrefix}:${request.ip || ''}`;
+      const result = await incrementRateLimit(key, windowMs);
+      if (result.count > limit) {
+        response.setHeader('Retry-After', Math.max(1, Math.ceil((Date.parse(result.resetAt) - Date.now()) / 1000)));
+        response.status(429).json({ error: 'RATE_LIMITED' });
+        return;
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
 const authRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 5 });
+const authDbRateLimit = createDbRateLimit({ windowMs: 15 * 60 * 1000, limit: 20, keyPrefix: 'auth-login' });
 const signupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const passwordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const passwordResetDbRateLimit = createDbRateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 20, keyPrefix: 'password-reset' });
 const profileUpdateRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const profilePasswordRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const accountDeactivateRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
@@ -119,14 +139,19 @@ const teacherWriteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, li
 const scoreRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 const emailVerificationRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const adminBackupExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const adminBackupExportDbRateLimit = createDbRateLimit({ windowMs: 60 * 60 * 1000, limit: 20, keyPrefix: 'admin-backup-export' });
 const adminSecurityExportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const adminSecurityExportDbRateLimit = createDbRateLimit({ windowMs: 60 * 60 * 1000, limit: 20, keyPrefix: 'admin-security-export' });
 const importRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const teacherClassImportRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 20 });
 const graphSnapshotRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
 const adminRestoreRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 3 });
+const adminRestoreDbRateLimit = createDbRateLimit({ windowMs: 60 * 60 * 1000, limit: 6, keyPrefix: 'admin-restore' });
 const adminPermanentDeleteRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
 const adminPasswordResetRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+const adminPasswordResetDbRateLimit = createDbRateLimit({ windowMs: 60 * 60 * 1000, limit: 20, keyPrefix: 'admin-password-reset' });
 const twoFactorVerifyRateLimit = createJsonRateLimit({ windowMs: 15 * 60 * 1000, limit: 8 });
+const twoFactorVerifyDbRateLimit = createDbRateLimit({ windowMs: 15 * 60 * 1000, limit: 20, keyPrefix: 'admin-2fa-verify' });
 const twoFactorSetupRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 6 });
 const twoFactorRecoveryRegenerationRequestRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 5 });
 const twoFactorRecoveryRegenerationConfirmRateLimit = createJsonRateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
@@ -580,8 +605,14 @@ function envList(name) {
   return String(process.env[name] || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function adminCountryHeaderName() {
+  return String(process.env.ADMIN_COUNTRY_HEADER || 'cf-ipcountry').trim().toLowerCase();
+}
+
 function requestCountry(request) {
-  return String(request.get('cf-ipcountry') || request.get('x-vercel-ip-country') || request.get('x-country-code') || '').trim().toUpperCase();
+  const header = adminCountryHeaderName();
+  if (!header) return '';
+  return String(request.get(header) || '').trim().toUpperCase();
 }
 
 function ipMatchesAllowed(requestIp, allowedIp) {
@@ -998,7 +1029,7 @@ app.get('/api/schools/:schoolId/score-tables', async (request, response) => {
   response.json(data);
 });
 
-app.post('/api/auth/login', authRateLimit, async (request, response) => {
+app.post('/api/auth/login', authRateLimit, authDbRateLimit, async (request, response) => {
   const { email, password } = request.body || {};
   let user;
   const auditEmail = String(email || '').trim().toLowerCase();
@@ -1049,7 +1080,7 @@ app.post('/api/auth/login', authRateLimit, async (request, response) => {
   response.json({ user, csrfToken: session.csrfToken });
 });
 
-app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, async (request, response) => {
+app.post('/api/auth/2fa/verify-login', twoFactorVerifyRateLimit, twoFactorVerifyDbRateLimit, async (request, response) => {
   const { challengeToken, code } = request.body || {};
   const challenge = await getTwoFactorChallenge(challengeToken);
 
@@ -1251,7 +1282,7 @@ app.post('/api/auth/verify-email', emailVerificationRateLimit, async (request, r
   }
 });
 
-app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, response) => {
+app.post('/api/auth/forgot-password', passwordResetRateLimit, passwordResetDbRateLimit, async (request, response) => {
   const email = String(request.body?.email || '').trim().toLowerCase();
   const neutralResponse = { ok: true };
 
@@ -1290,7 +1321,7 @@ app.post('/api/auth/forgot-password', passwordResetRateLimit, async (request, re
   response.json(neutralResponse);
 });
 
-app.post('/api/auth/reset-password', passwordResetRateLimit, async (request, response) => {
+app.post('/api/auth/reset-password', passwordResetRateLimit, passwordResetDbRateLimit, async (request, response) => {
   const { token, newPassword, newPasswordRepeat } = request.body || {};
 
   if (!newPassword || newPassword !== newPasswordRepeat) {
@@ -1656,6 +1687,7 @@ app.get('/api/admin/access-settings', requireAuth, async (request, response) => 
       ip: request.ip || '',
       country: requestCountry(request),
       countryHeaderPresent: Boolean(requestCountry(request)),
+      countryHeader: adminCountryHeaderName(),
     },
     configured: {
       allowedIpCount: envList('ADMIN_ALLOWED_IPS').length,
@@ -1666,11 +1698,12 @@ app.get('/api/admin/access-settings', requireAuth, async (request, response) => 
       allowedIps: 'ADMIN_ALLOWED_IPS',
       allowedCountries: 'ADMIN_ALLOWED_COUNTRIES',
       blockedCountries: 'ADMIN_BLOCKED_COUNTRIES',
+      countryHeader: 'ADMIN_COUNTRY_HEADER',
     },
   });
 });
 
-app.post('/api/admin/security-events/export', adminSecurityExportRateLimit, requireAuth, async (request, response) => {
+app.post('/api/admin/security-events/export', adminSecurityExportRateLimit, adminSecurityExportDbRateLimit, requireAuth, async (request, response) => {
   if (!await requireGlobalAdminReady(request, response)) return;
 
   if (!await ensureCurrentAdminPassword(request, response, 'export_security_log')) return;
@@ -1696,7 +1729,7 @@ app.get('/api/admin/backup', requireAuth, (request, response) => {
   response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
 });
 
-app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, async (request, response) => {
+app.post('/api/admin/backup/export', adminBackupExportRateLimit, adminBackupExportDbRateLimit, requireAuth, async (request, response) => {
   if (!await requireGlobalAdminReady(request, response)) return;
 
   if (!await ensureCurrentAdminPassword(request, response, 'export_backup')) return;
@@ -1713,7 +1746,7 @@ app.post('/api/admin/backup/export', adminBackupExportRateLimit, requireAuth, as
   response.json(await exportBackupData());
 });
 
-app.post('/api/admin/backup/restore/dry-run', adminRestoreRateLimit, requireAuth, async (request, response) => {
+app.post('/api/admin/backup/restore/dry-run', adminRestoreRateLimit, adminRestoreDbRateLimit, requireAuth, async (request, response) => {
   if (!await requireGlobalAdminReady(request, response)) return;
 
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
@@ -1734,7 +1767,7 @@ app.post('/api/admin/backup/restore/dry-run', adminRestoreRateLimit, requireAuth
   }
 });
 
-app.post('/api/admin/backup/restore', adminRestoreRateLimit, requireAuth, async (request, response) => {
+app.post('/api/admin/backup/restore', adminRestoreRateLimit, adminRestoreDbRateLimit, requireAuth, async (request, response) => {
   if (!await requireGlobalAdminReady(request, response)) return;
 
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_RESTORE !== 'true') {
@@ -1831,7 +1864,7 @@ app.delete('/api/admin/users/:userId/permanent', adminPermanentDeleteRateLimit, 
   }
 });
 
-app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit, requireAuth, async (request, response) => {
+app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit, adminPasswordResetDbRateLimit, requireAuth, async (request, response) => {
   if (!await requireGlobalAdminReady(request, response)) return;
 
   const userId = Number(request.params.userId);

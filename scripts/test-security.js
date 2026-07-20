@@ -11,6 +11,9 @@ function testXssGuards() {
   const app = read('public/app.js');
   assert(!app.includes('פרטים: ${error.message}'), 'raw error.message must not be inserted into HTML');
   assert(!/insertAdjacentHTML\s*\(/.test(app), 'insertAdjacentHTML requires explicit security review');
+  assert(!/eval\s*\(/.test(app), 'eval must not be used');
+  assert(!/new Function\s*\(/.test(app), 'new Function must not be used');
+  assert(!/document\.write\s*\(/.test(app), 'document.write must not be used');
   assert(/escapeHtml\(error\.message\)/.test(app), 'backup error details should be escaped');
 }
 
@@ -28,6 +31,27 @@ function testCspHardening() {
   assert(server.includes("script-src 'self'"), 'CSP should restrict scripts to self');
   assert(server.includes("object-src 'none'"), 'CSP should block plugins/objects');
   assert(server.includes('upgrade-insecure-requests'), 'CSP should upgrade insecure requests in production/HTTPS');
+  assert(!server.includes("require-trusted-types-for 'script'"), 'Trusted Types enforcement must stay disabled until the frontend supports it');
+}
+
+function testTrustedCountryHeader() {
+  const server = read('server.js');
+  assert(server.includes('ADMIN_COUNTRY_HEADER'), 'country header should be configurable');
+  assert(server.includes("'cf-ipcountry'"), 'country filtering should default to Cloudflare country header');
+  assert(!server.includes("request.get('x-country-code')"), 'generic spoofable country header must not be trusted by default');
+}
+
+function testSensitiveRateLimitCoverage() {
+  const server = read('server.js');
+  [
+    'authDbRateLimit',
+    'passwordResetDbRateLimit',
+    'twoFactorVerifyDbRateLimit',
+    'adminBackupExportDbRateLimit',
+    'adminRestoreDbRateLimit',
+    'adminSecurityExportDbRateLimit',
+    'adminPasswordResetDbRateLimit',
+  ].forEach((name) => assert(server.includes(name), `${name} should be wired`));
 }
 
 function freshSqliteDb() {
@@ -72,9 +96,20 @@ function testSessionExpiryOverride() {
   assert(diffHours > 23 && diffHours <= 25, 'session expiry override should be close to one day');
 }
 
+function testDbRateLimitHelper() {
+  const authDb = freshSqliteDb();
+  const first = authDb.incrementRateLimit('security-test', 60000);
+  const second = authDb.incrementRateLimit('security-test', 60000);
+  assert.strictEqual(first.count, 1);
+  assert.strictEqual(second.count, 2);
+}
+
 testXssGuards();
 testEncryptedBackupFlowIsStandard();
 testCspHardening();
+testTrustedCountryHeader();
+testSensitiveRateLimitCoverage();
 testPasswordResetOncePerDaySupport();
 testSessionExpiryOverride();
+testDbRateLimitHelper();
 console.log('security tests passed');

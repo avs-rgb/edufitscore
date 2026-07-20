@@ -3701,12 +3701,13 @@ function renderAdminAccessSettings(settings) {
     <div class="admin-access-settings-grid">
       <article class="admin-security-summary-card"><strong>IP נוכחי</strong><span>${escapeHtml(current.ip || '-')}</span></article>
       <article class="admin-security-summary-card"><strong>מדינה נוכחית</strong><span>${escapeHtml(current.country || 'לא זוהתה')}</span></article>
+      <article class="admin-security-summary-card"><strong>כותרת מדינה</strong><span>${escapeHtml(current.countryHeader || 'cf-ipcountry')}</span></article>
       <article class="admin-security-summary-card"><strong>כתובות IP מורשות</strong><span>${Number(configured.allowedIpCount || 0) ? `${Number(configured.allowedIpCount)} מוגדרות` : 'לא פעיל'}</span></article>
       <article class="admin-security-summary-card"><strong>מדינות מותרות</strong><span>${allowedCountries.length ? escapeHtml(allowedCountries.join(', ')) : 'לא פעיל'}</span></article>
       <article class="admin-security-summary-card"><strong>מדינות חסומות</strong><span>${blockedCountries.length ? escapeHtml(blockedCountries.join(', ')) : 'לא פעיל'}</span></article>
     </div>
-    <p class="admin-access-settings-note">ההגבלה חלה רק על מנהל גלובלי. שינוי הערכים מתבצע במשתני הסביבה: <code>${escapeHtml(settings.env?.allowedIps || 'ADMIN_ALLOWED_IPS')}</code>, <code>${escapeHtml(settings.env?.allowedCountries || 'ADMIN_ALLOWED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.blockedCountries || 'ADMIN_BLOCKED_COUNTRIES')}</code>.</p>
-    ${current.countryHeaderPresent ? '' : '<p class="admin-access-settings-note login-error">לא זוהה קוד מדינה מהשרת/CDN. סינון מדינות דורש כותרת אמינה כמו cf-ipcountry.</p>'}
+    <p class="admin-access-settings-note">ההגבלה חלה רק על מנהל גלובלי. שינוי הערכים מתבצע במשתני הסביבה: <code>${escapeHtml(settings.env?.allowedIps || 'ADMIN_ALLOWED_IPS')}</code>, <code>${escapeHtml(settings.env?.allowedCountries || 'ADMIN_ALLOWED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.blockedCountries || 'ADMIN_BLOCKED_COUNTRIES')}</code>, <code>${escapeHtml(settings.env?.countryHeader || 'ADMIN_COUNTRY_HEADER')}</code>.</p>
+    ${current.countryHeaderPresent ? '' : '<p class="admin-access-settings-note login-error">לא זוהה קוד מדינה מהשרת/CDN. סינון מדינות דורש כותרת אמינה כמו cf-ipcountry או ADMIN_COUNTRY_HEADER שמוגדר במפורש.</p>'}
   `;
 }
 

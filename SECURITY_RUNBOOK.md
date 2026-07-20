@@ -16,6 +16,7 @@
 ## App Backup Routine
 
 - Export an app backup from the admin area before major releases and after important data imports.
+- Follow `BACKUP_PROCEDURE.md` for backup password storage and restore handling.
 - Store backups outside GitHub in a private, access-controlled location.
 - Do not store database URLs, API keys, SMTP passwords, or reset tokens in notes or commits.
 - Verify the admin diagnostics panel shows a recent `גיבוי אחרון` timestamp after export.
