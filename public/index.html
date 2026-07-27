@@ -986,6 +986,11 @@
               <h2>ניהול כיתות</h2>
               <button id="teacher-school-admin-switch" type="button" class="back-home-button is-hidden">רכז/ת חנ"ג</button>
               <div class="teacher-entry-actions">
+                <label class="teacher-season-picker"><span>עונה:</span>
+                  <select id="teacher-season-select" class="teacher-sort-select">
+                    <option value="2025-2026">2025-2026</option>
+                  </select>
+                </label>
                 <button id="teacher-class-view-toggle" type="button" class="back-home-button">תצוגה</button>
                 <select id="teacher-class-sort-field" class="teacher-sort-select">
                   <option value="manual">סדר ידני</option>
@@ -1002,6 +1007,7 @@
                 <button id="teacher-refresh-classes" type="button" class="back-home-button">רענון</button>
               </div>
             </div>
+            <div id="teacher-season-status" class="teacher-season-status"></div>
             <div id="teacher-class-form-error" class="login-error" role="alert" aria-live="polite"></div>
             <div id="teacher-class-list" class="teacher-class-list teacher-class-table-like"></div>
           </section>
@@ -1188,6 +1194,6 @@
     </main>
 
     <script src="/school-score.js?v=20260701-25" defer></script>
-    <script src="/app.js?v=20260701-25" defer></script>
+    <script src="/app.js?v=20260727-seasons" defer></script>
   </body>
   </html>

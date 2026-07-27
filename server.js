@@ -84,6 +84,7 @@ const {
   listTeacherClassHistory,
   deleteTeacherClassHistory,
   appendClassHistory,
+  isSeasonLocked,
 } = require('./lib/auth-db');
 
 const app = express();
@@ -96,6 +97,12 @@ const adminReauthWindowMs = Number(process.env.ADMIN_REAUTH_WINDOW_MINUTES || 5)
 const adminSessionDays = Number(process.env.ADMIN_SESSION_DAYS || 1);
 const userSessionDays = Number(process.env.USER_SESSION_DAYS || 14);
 app.set('trust proxy', 1);
+
+function handleSeasonLocked(response, error) {
+  if (error?.message !== 'SEASON_LOCKED') return false;
+  response.status(423).json({ error: 'SEASON_LOCKED' });
+  return true;
+}
 
 function createJsonRateLimit(options) {
   return rateLimit({
@@ -1951,7 +1958,12 @@ app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit,
 });
 
 app.get('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
-  response.json({ classes: await listTeacherClasses(request.authUser.id) });
+  response.setHeader('Cache-Control', 'no-store');
+  const result = await listTeacherClasses(request.authUser.id, { season: request.query.season });
+  response.json({
+    ...result,
+    classes: (result.classes || []).filter((teacherClass) => !teacherClass.season || teacherClass.season === result.season),
+  });
 });
 
 app.get('/api/teacher/classes/:classId/score-table', requireTeacherOrAdmin, async (request, response) => {
@@ -1975,11 +1987,17 @@ app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (r
 });
 
 app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
-  const deleted = await deleteTeacherClassHistory(
-    request.authUser.id,
-    Number(request.params.classId),
-    Number(request.params.historyId)
-  );
+  let deleted;
+  try {
+    deleted = await deleteTeacherClassHistory(
+      request.authUser.id,
+      Number(request.params.classId),
+      Number(request.params.historyId)
+    );
+  } catch (error) {
+    if (handleSeasonLocked(response, error)) return;
+    throw error;
+  }
 
   if (!deleted) {
     response.status(404).json({ error: 'History entry not found' });
@@ -1990,12 +2008,18 @@ app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateL
 });
 
 app.patch('/api/teacher/classes/:classId/history/:historyId/semester', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
-  const updated = await updateTeacherClassHistorySemester(
-    request.authUser.id,
-    Number(request.params.classId),
-    Number(request.params.historyId),
-    request.body?.semester
-  );
+  let updated;
+  try {
+    updated = await updateTeacherClassHistorySemester(
+      request.authUser.id,
+      Number(request.params.classId),
+      Number(request.params.historyId),
+      request.body?.semester
+    );
+  } catch (error) {
+    if (handleSeasonLocked(response, error)) return;
+    throw error;
+  }
 
   if (!updated) {
     response.status(404).json({ error: 'History entry not found' });
@@ -2014,6 +2038,7 @@ app.post('/api/teacher/classes', teacherWriteRateLimit, requireTeacherOrAdmin, a
       response.status(400).json({ error: 'Class limit reached' });
       return;
     }
+    if (handleSeasonLocked(response, error)) return;
     if (error.message === 'SCHOOL_ACCESS_DENIED') {
       response.status(403).json({ error: 'SCHOOL_ACCESS_DENIED' });
       return;
@@ -2064,6 +2089,7 @@ app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeac
             studentCount: teacherClass.studentCount,
             roster: teacherClass.roster,
             values: {},
+            season: request.query.season,
           }));
         } catch (error) {
           skipped.push({ sheetName: teacherClass.sheetName, error: error.message || 'IMPORT_CLASS_FAILED' });
@@ -2085,7 +2111,12 @@ app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeac
 
 app.put('/api/teacher/classes/reorder', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
   const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds.map(Number) : [];
-  response.json({ classes: await reorderTeacherClasses(request.authUser.id, orderedIds) });
+  try {
+    response.json(await reorderTeacherClasses(request.authUser.id, orderedIds));
+  } catch (error) {
+    if (handleSeasonLocked(response, error)) return;
+    throw error;
+  }
 });
 
 app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
@@ -2097,6 +2128,7 @@ app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOr
       response.status(403).json({ error: 'SCHOOL_ACCESS_DENIED' });
       return;
     }
+    if (handleSeasonLocked(response, error)) return;
     throw error;
   }
 
@@ -2109,7 +2141,13 @@ app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOr
 });
 
 app.delete('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
-  const deleted = await deleteTeacherClass(request.authUser.id, Number(request.params.classId));
+  let deleted;
+  try {
+    deleted = await deleteTeacherClass(request.authUser.id, Number(request.params.classId));
+  } catch (error) {
+    if (handleSeasonLocked(response, error)) return;
+    throw error;
+  }
 
   if (!deleted) {
     response.status(404).json({ error: 'Class not found' });
@@ -2222,6 +2260,10 @@ app.post('/api/bulk-score', scoreRateLimit, requireAuth, async (request, respons
     const teacherClass = await getTeacherClass(request.authUser.id, Number(classId));
     if (!teacherClass) {
       response.status(404).json({ error: 'CLASS_NOT_FOUND' });
+      return;
+    }
+    if (isSeasonLocked(teacherClass.season)) {
+      response.status(423).json({ error: 'SEASON_LOCKED' });
       return;
     }
 

@@ -43,8 +43,8 @@ function testSqliteClassScoreTableResolver() {
     VALUES (?, ?, 'teacher', 'approved', ?, ?)
   `).run(user, school, now, now);
   const classId = db.prepare(`
-    INSERT INTO teacher_classes (user_id, name, grade, gender, school_id, order_index, student_count, roster_json, values_json, created_at, updated_at)
-    VALUES (?, 'Class', 'יב', 'male', ?, 0, 1, '[]', '{}', ?, ?)
+    INSERT INTO teacher_classes (user_id, name, grade, gender, season, school_id, order_index, student_count, roster_json, values_json, created_at, updated_at)
+    VALUES (?, 'Class', 'יב', 'male', '2025-2026', ?, 0, 1, '[]', '{}', ?, ?)
   `).run(user, school, now, now).lastInsertRowid;
   const subjects = [{ id: 's1', name: 'בדיקה' }];
   const rows = [{ score: 100, values: { s1: '10' } }, { score: 0, values: { s1: '0' } }];
@@ -68,6 +68,7 @@ function testSqliteClassScoreTableResolver() {
   assert.strictEqual(restored.error, null);
   assert.strictEqual(restored.table.id, tableId);
   assert.strictEqual(restored.teacherClass.schoolId, school);
+  assert.strictEqual(restored.teacherClass.season, '2025-2026');
 
   const usersBeforeFailedSignup = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
   assert.throws(() => authDb.createUser({
@@ -83,6 +84,43 @@ function testSqliteClassScoreTableResolver() {
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS count FROM users').get().count, usersBeforeFailedSignup);
 }
 
+function testTeacherSeasons() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edufitscore-season-test-'));
+  process.env.DATABASE_PATH = path.join(tempDir, 'auth.db');
+  delete require.cache[require.resolve('../lib/auth-db-sqlite')];
+  const authDb = require('../lib/auth-db-sqlite');
+  assert.strictEqual(authDb.seasonForDate(new Date(Date.UTC(2025, 7, 1))), '2025-2026');
+  assert.strictEqual(authDb.seasonForDate(new Date(Date.UTC(2026, 6, 31))), '2025-2026');
+  assert.strictEqual(authDb.signupStartSeason(new Date(Date.UTC(2026, 6, 10))), '2026-2027');
+
+  const user = authDb.createUser({
+    firstName: 'Season',
+    lastName: 'Teacher',
+    email: 'season@test.local',
+    phone: '0501234567',
+    city: 'City',
+    schoolName: 'School',
+    accountType: 'teacher',
+    password: 'Aa123456!',
+  });
+  const Database = require('better-sqlite3');
+  const db = new Database(process.env.DATABASE_PATH);
+  const now = new Date().toISOString();
+  const classId = db.prepare(`
+    INSERT INTO teacher_classes (user_id, name, grade, gender, season, order_index, student_count, roster_json, values_json, created_at, updated_at)
+    VALUES (?, 'Old Class', 7, 'male', '2024-2025', 0, 1, ?, ?, ?, ?)
+  `).run(user.id, JSON.stringify([{ id: 'student-1', name: 'Student' }]), JSON.stringify({ a: { 'student-1': { run: '10' } } }), now, now).lastInsertRowid;
+  const created = authDb.getTeacherClass(user.id, classId);
+  assert.strictEqual(created.season, '2024-2025');
+  assert.throws(() => authDb.updateTeacherClass(user.id, created.id, { name: 'Locked' }), /SEASON_LOCKED/);
+  const current = authDb.listTeacherClasses(user.id);
+  assert.strictEqual(current.classes.length, 1);
+  assert.strictEqual(current.classes[0].name, 'Old Class');
+  assert.deepStrictEqual(current.classes[0].values, {});
+  assert.strictEqual(authDb.createTeacherClass(user.id, { name: 'Current Class', grade: 7, gender: 'male', studentCount: 1, roster: [], values: {} }).season, authDb.seasonForDate());
+}
+
 testSchoolScoreMatcher();
 testSqliteClassScoreTableResolver();
+testTeacherSeasons();
 console.log('critical tests passed');

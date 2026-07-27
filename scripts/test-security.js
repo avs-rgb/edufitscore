@@ -59,6 +59,30 @@ function testOperationalMonitoring() {
   assert(runbook.includes('Operational Monitoring'), 'runbook should document operational monitoring');
 }
 
+function testSeasonControls() {
+  const server = read('server.js');
+  const sqlite = read('lib/auth-db-sqlite.js');
+  const postgres = read('lib/auth-db-postgres.js');
+  const app = read('public/app.js');
+  const html = read('public/index.html');
+  assert(sqlite.includes('seasonForDate'), 'sqlite season helper missing');
+  assert(postgres.includes('seasonForDate'), 'postgres season helper missing');
+  assert(sqlite.includes("'2025-2026'"), 'existing data should default to 2025-2026');
+  assert(server.includes('SEASON_LOCKED'), 'server should expose locked season errors');
+  assert(app.includes('teacherSeasonLocked'), 'frontend should track locked seasons');
+  assert(app.includes('data-class-name-edit'), 'class-name editing should be on class list cards');
+  assert(html.includes('teacher-season-select'), 'teacher season selector missing');
+  assert(html.includes('2025-2026'), 'teacher season selector should default to 2025-2026 before loading');
+  assert(app.includes('const seasonOptions = Array.from(new Set'), 'teacher season selector should have JS fallback options');
+  assert(app.includes('teacherClass.season === teacherSeason'), 'class list should filter by selected season');
+  assert(app.includes("cache: 'no-store'"), 'teacher class API fetch should bypass stale cache');
+  assert(server.includes("Cache-Control', 'no-store'"), 'teacher class API should disable caching');
+  assert(app.includes('mergedYearlyMetrics'), 'yearly history should merge saved history subjects');
+  assert(app.includes('renderTeacherResultsTableMarkup(yearlyResults, yearlyMetrics)'), 'yearly history should render using saved history metrics');
+  assert(app.includes("setTeacherSubview(teacherSeasonLocked ? 'history' : 'detail')"), 'locked season classes should open history automatically');
+  assert(app.includes("teacherBackToClassDetailButton.textContent = teacherSeasonLocked ? 'חזרה לניהול כיתות' : 'חזרה לכיתה'"), 'locked season history back button should return to classes');
+}
+
 function testSensitiveRateLimitCoverage() {
   const server = read('server.js');
   [
@@ -127,6 +151,7 @@ testEncryptedBackupFlowIsStandard();
 testCspHardening();
 testTrustedCountryHeader();
 testOperationalMonitoring();
+testSeasonControls();
 testSensitiveRateLimitCoverage();
 testPasswordResetOncePerDaySupport();
 testSessionExpiryOverride();

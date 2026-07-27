@@ -314,6 +314,8 @@ const teacherHistoryRecordsCsvButton = document.querySelector('#teacher-history-
 const teacherClassViewToggleButton = document.querySelector('#teacher-class-view-toggle');
 const teacherClassSortField = document.querySelector('#teacher-class-sort-field');
 const teacherClassSortDirection = document.querySelector('#teacher-class-sort-direction');
+const teacherSeasonSelect = document.querySelector('#teacher-season-select');
+const teacherSeasonStatus = document.querySelector('#teacher-season-status');
 const teacherDeleteModal = document.querySelector('#teacher-delete-modal');
 const teacherDeleteMessage = document.querySelector('#teacher-delete-message');
 const teacherConfirmDeleteButton = document.querySelector('#teacher-confirm-delete');
@@ -361,6 +363,10 @@ let teacherYearlySemesterARatio = 50;
 let teacherEditMode = false;
 let dragSourceIndex = null;
 let teacherClassesEditMode = false;
+let teacherSeason = '2025-2026';
+let teacherActiveSeason = '2025-2026';
+let teacherAvailableSeasons = ['2025-2026'];
+let teacherSeasonLocked = false;
 let teacherSubview = 'home';
 let teacherClassListView = 'cards';
 let pendingDeleteClassId = null;
@@ -1034,6 +1040,11 @@ function syncSemesterControls() {
   if (teacherYearlyRatioBValue) {
     teacherYearlyRatioBValue.textContent = `${100 - teacherYearlySemesterARatio}%`;
   }
+}
+
+function syncLockedSeasonHistoryControls() {
+  if (!teacherBackToClassDetailButton) return;
+  teacherBackToClassDetailButton.textContent = teacherSeasonLocked ? 'חזרה לניהול כיתות' : 'חזרה לכיתה';
 }
 
 function computeTeacherClassSummary() {
@@ -2105,13 +2116,36 @@ function renderTeacherClassList() {
     setTeacherEditSaveMessage('');
   }
 
+  if (teacherSeasonSelect) {
+    const seasonOptions = Array.from(new Set([
+      ...teacherAvailableSeasons,
+      teacherSeason,
+      teacherActiveSeason,
+    ].filter(Boolean)));
+    teacherSeasonSelect.innerHTML = seasonOptions.length
+      ? seasonOptions.map((season) => `<option value="${escapeAttr(season)}" ${season === teacherSeason ? 'selected' : ''}>${escapeHtml(season)}</option>`).join('')
+      : '<option value="2025-2026">2025-2026</option>';
+  }
+  if (teacherSeasonStatus) {
+    teacherSeasonStatus.textContent = teacherSeasonLocked
+      ? `העונה ${teacherSeason} נעולה לצפייה בלבד. אפשר לצפות, לשתף ולהוריד גרפים, אך לא לערוך.`
+      : `עונה פעילה: ${teacherSeason || teacherActiveSeason || '-'}`;
+    teacherSeasonStatus.classList.toggle('is-locked', teacherSeasonLocked);
+  }
+  if (teacherSeasonLocked) {
+    teacherClassesEditMode = false;
+  }
+  teacherNewClassButton.disabled = teacherSeasonLocked;
+  teacherEditClassesButton.disabled = teacherSeasonLocked;
+  teacherRefreshClassesButton.disabled = false;
   teacherClassList.classList.toggle('teacher-class-list-rows', teacherClassListView === 'list');
   teacherClassList.classList.toggle('is-editing', teacherClassesEditMode);
   teacherClassSortField.disabled = teacherClassesEditMode;
   teacherClassSortDirection.disabled = teacherClassesEditMode;
   const useManualOrder = teacherClassesEditMode || teacherClassSortField.value === 'manual';
   teacherClassViewToggleButton.textContent = 'תצוגה';
-  const sortedClasses = useManualOrder ? [...teacherClasses] : [...teacherClasses].sort((left, right) => {
+  const visibleClasses = teacherClasses.filter((teacherClass) => !teacherClass.season || teacherClass.season === teacherSeason);
+  const sortedClasses = useManualOrder ? [...visibleClasses] : [...visibleClasses].sort((left, right) => {
     const filledLeft = Object.values(left.values || {}).reduce((count, studentValues) => count + Object.values(studentValues || {}).filter(Boolean).length, 0);
     const filledRight = Object.values(right.values || {}).reduce((count, studentValues) => count + Object.values(studentValues || {}).filter(Boolean).length, 0);
     const sortField = teacherClassSortField.value;
@@ -2134,13 +2168,14 @@ function renderTeacherClassList() {
 
       return `
       <article class="teacher-class-card${teacherClass.id === activeTeacherClassId ? ' is-active' : ''}" data-open-class-id="${escapeAttr(teacherClass.id)}" ${teacherClassesEditMode ? 'draggable="true"' : ''}>
-        <strong>${escapeHtml(teacherClass.name)}</strong>
+        ${teacherClassesEditMode ? `<input class="teacher-class-name-edit" type="text" value="${escapeAttr(teacherClass.name)}" data-class-name-edit="${escapeAttr(teacherClass.id)}" aria-label="שם כיתה" />` : `<strong>${escapeHtml(teacherClass.name)}</strong>`}
         <div>שכבה: ${escapeHtml(formatClassName(teacherClass.grade))}</div>
         <div>קבוצה: ${teacherClass.gender === 'female' ? 'בנות' : 'בנים'}</div>
         <div>מספר תלמידים: ${escapeHtml(teacherClass.studentCount)}</div>
         <div class="teacher-class-card-actions">
           ${teacherClassesEditMode ? `
             <button type="button" class="teacher-order-button teacher-drag-handle" data-class-id="${escapeAttr(teacherClass.id)}">גרירה</button>
+            <button type="button" class="teacher-order-button" data-save-class-name-id="${escapeAttr(teacherClass.id)}">שמירת שם</button>
             <button type="button" class="danger-button teacher-delete-class-button" data-delete-class-id="${escapeAttr(teacherClass.id)}">מחיקת כיתה</button>
           ` : ''}
         </div>
@@ -2206,7 +2241,7 @@ async function loadTeacherClassIntoWorkspace(teacherClass) {
   }
   syncTeacherGenderTabs();
   syncSemesterControls();
-  setTeacherSubview('detail');
+  setTeacherSubview(teacherSeasonLocked ? 'history' : 'detail');
   teacherClassDetailTitle.textContent = teacherClass.name;
   const summary = computeTeacherClassSummary();
   const summaryHtml = `
@@ -2222,6 +2257,10 @@ async function loadTeacherClassIntoWorkspace(teacherClass) {
   if (activeTeacherClassId !== classId) {
     return;
   }
+  if (teacherSeasonLocked) {
+    setTeacherSubview('history', false);
+    syncLockedSeasonHistoryControls();
+  }
   updateTeacherClassSummaryCards();
 }
 
@@ -2230,7 +2269,9 @@ async function refreshTeacherClasses() {
     return;
   }
 
-  const response = await fetch('/api/teacher/classes');
+  const params = new URLSearchParams();
+  if (teacherSeason) params.set('season', teacherSeason);
+  const response = await fetch(`/api/teacher/classes${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' });
 
   if (!response.ok) {
     teacherClassList.innerHTML = '<p>לא ניתן לטעון כיתות כרגע.</p>';
@@ -2238,7 +2279,11 @@ async function refreshTeacherClasses() {
   }
 
   const data = await response.json();
-  teacherClasses = data.classes;
+  teacherSeason = data.season || teacherSeason || data.activeSeason || '';
+  teacherActiveSeason = data.activeSeason || teacherActiveSeason || teacherSeason;
+  teacherAvailableSeasons = Array.isArray(data.seasons) ? data.seasons : [teacherSeason].filter(Boolean);
+  teacherSeasonLocked = Boolean(data.locked);
+  teacherClasses = (data.classes || []).filter((teacherClass) => !teacherClass.season || teacherClass.season === teacherSeason);
 
   if (!activeTeacherClassId && teacherClasses.length) {
     activeTeacherClassId = teacherClasses[0].id;
@@ -2265,6 +2310,10 @@ async function refreshCurrentTeacherHistory() {
 async function createTeacherClassFromForm(event) {
   event.preventDefault();
   teacherClassFormError.textContent = '';
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    return;
+  }
 
   const payload = {
     name: teacherClassNameInput.value.trim(),
@@ -2277,6 +2326,7 @@ async function createTeacherClassFromForm(event) {
       name: input.value.trim() || `${teacherClassGenderSelect.value === 'female' ? 'תלמידה' : 'תלמיד'} ${index + 1}`,
     })),
     values: {},
+    season: teacherSeason,
   };
 
   if (!payload.name) {
@@ -2299,7 +2349,7 @@ async function createTeacherClassFromForm(event) {
   }
 
   const data = await response.json();
-  teacherClasses = [data.teacherClass, ...teacherClasses];
+  teacherClasses = data.teacherClass?.season === teacherSeason ? [data.teacherClass, ...teacherClasses] : teacherClasses;
   await loadTeacherClassIntoWorkspace(data.teacherClass);
 }
 
@@ -2320,6 +2370,11 @@ async function importTeacherClassesFromRoster(event) {
   if (!file) {
     return;
   }
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    teacherClassRosterImportInput.value = '';
+    return;
+  }
 
   teacherClassFormError.textContent = 'מייבא כיתות מהקובץ...';
   try {
@@ -2327,6 +2382,7 @@ async function importTeacherClassesFromRoster(event) {
       grade: teacherClassGradeSelect.value,
       gender: teacherClassGenderSelect.value,
     });
+    if (teacherSeason) params.set('season', teacherSeason);
     if (teacherClassSchoolSelect?.value) {
       params.set('schoolId', teacherClassSchoolSelect.value);
     }
@@ -2362,6 +2418,10 @@ async function saveCurrentTeacherClass(options = {}) {
   if (!activeTeacherClassId) {
     teacherClassFormError.textContent = 'יש לבחור או ליצור כיתה לפני שמירה.';
     return;
+  }
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    return null;
   }
 
   const payload = {
@@ -2399,6 +2459,9 @@ async function saveCurrentTeacherClassQuietly() {
   if (!activeTeacherClassId) {
     return;
   }
+  if (teacherSeasonLocked) {
+    return;
+  }
 
   const payload = {
     name: teacherClassNameInput.value.trim() || currentTeacherClass()?.name || 'כיתה ללא שם',
@@ -2428,6 +2491,36 @@ async function saveCurrentTeacherClassQuietly() {
     activeClass.values = normalizeTeacherClassValues(data.teacherClass.values || {});
   }
   teacherClassFormError.textContent = '';
+}
+
+async function saveTeacherClassNameFromList(classId) {
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    return;
+  }
+  const teacherClass = teacherClasses.find((item) => item.id === Number(classId));
+  const input = teacherClassList.querySelector(`[data-class-name-edit="${CSS.escape(String(classId))}"]`);
+  const name = input?.value.trim();
+  if (!teacherClass || !name) {
+    teacherClassFormError.textContent = 'יש להזין שם כיתה.';
+    return;
+  }
+  const response = await apiFetch(`/api/teacher/classes/${classId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...teacherClass, name }),
+  });
+  if (!response.ok) {
+    teacherClassFormError.textContent = 'לא ניתן לשמור את שם הכיתה כרגע.';
+    return;
+  }
+  const data = await response.json();
+  teacherClasses = teacherClasses.map((item) => (item.id === data.teacherClass.id ? data.teacherClass : item));
+  if (activeTeacherClassId === data.teacherClass.id) {
+    teacherClassDetailTitle.textContent = data.teacherClass.name;
+  }
+  teacherClassFormError.textContent = '';
+  renderTeacherClassList();
 }
 
 function renderClassTabs() {
@@ -5342,8 +5435,9 @@ function renderTeacherResultsTable(students = []) {
 }
 
 function bestSemesterScoresFromHistory(semester) {
-  const sheet = selectedSheet();
   const bestByStudent = new Map();
+  const metrics = [];
+  const seenMetrics = new Set();
   teacherHistoryEntries
     .filter((entry) => (entry.payload?.semester || 'a') === semester)
     .forEach((entry) => {
@@ -5356,27 +5450,45 @@ function bestSemesterScoresFromHistory(semester) {
         const scores = bestByStudent.get(name);
         (student.results || []).forEach((item) => {
           const score = Number(item?.result?.score);
+          const key = item.key || item.label;
+          const label = item.label || item.key;
+          if (key && label && !seenMetrics.has(key)) {
+            seenMetrics.add(key);
+            metrics.push({ key, label });
+          }
           if (!Number.isFinite(score)) {
             return;
           }
 
-          if (!Number.isFinite(scores[item.key]) || score > scores[item.key]) {
-            scores[item.key] = score;
+          if (!Number.isFinite(scores[key]) || score > scores[key]) {
+            scores[key] = score;
           }
         });
       });
     });
 
-  return { sheet, bestByStudent };
+  return { metrics: metrics.length ? metrics : sheetMetrics(selectedSheet()), bestByStudent };
 }
 
-function calculateYearlyTeacherResults() {
+function mergedYearlyMetrics(...metricGroups) {
+  const metrics = [];
+  const seen = new Set();
+  metricGroups.flat().forEach((metric) => {
+    const key = metric.key || metric.label;
+    const label = metric.label || metric.key;
+    if (!key || !label || seen.has(key)) return;
+    seen.add(key);
+    metrics.push({ key, label });
+  });
+  return metrics.length ? metrics : sheetMetrics(selectedSheet());
+}
+
+function calculateYearlyTeacherResults(metricsOverride) {
   const ratioA = teacherYearlySemesterARatio / 100;
   const ratioB = 1 - ratioA;
   const semesterA = bestSemesterScoresFromHistory('a');
   const semesterB = bestSemesterScoresFromHistory('b');
-  const sheet = semesterA.sheet;
-  const metrics = sheetMetrics(sheet);
+  const metrics = metricsOverride || mergedYearlyMetrics(semesterA.metrics, semesterB.metrics);
 
   return teacherRoster.map((student) => {
     const scoresA = semesterA.bestByStudent.get(student.name) || {};
@@ -5416,9 +5528,8 @@ function calculateYearlyTeacherResults() {
 }
 
 function bestSemesterResultsForTable(semester) {
-  const { sheet, bestByStudent } = bestSemesterScoresFromHistory(semester);
-  const metrics = sheetMetrics(sheet);
-  return teacherRoster.map((student) => {
+  const { metrics, bestByStudent } = bestSemesterScoresFromHistory(semester);
+  const students = teacherRoster.map((student) => {
     const scores = bestByStudent.get(student.name) || {};
     const results = metrics.map((metric) => {
       const score = Number(scores[metric.key]);
@@ -5436,11 +5547,12 @@ function bestSemesterResultsForTable(semester) {
       averageScore: numericScores.length ? Math.floor(numericScores.reduce((sum, score) => sum + score, 0) / numericScores.length) : null,
     };
   });
+  return { metrics, students };
 }
 
-function renderTeacherResultsTableMarkup(students = []) {
+function renderTeacherResultsTableMarkup(students = [], metricsOverride) {
   const sheet = selectedSheet();
-  const metrics = sheetMetrics(sheet);
+  const metrics = metricsOverride || sheetMetrics(sheet);
   return `
     <table>
       <caption class="visually-hidden">טבלת תוצאות מומרות למורים</caption>
@@ -5471,7 +5583,8 @@ function renderYearlyHistorySummary() {
   syncSemesterControls();
   const semesterAResults = bestSemesterResultsForTable('a');
   const semesterBResults = bestSemesterResultsForTable('b');
-  const yearlyResults = calculateYearlyTeacherResults();
+  const yearlyMetrics = mergedYearlyMetrics(semesterAResults.metrics, semesterBResults.metrics);
+  const yearlyResults = calculateYearlyTeacherResults(yearlyMetrics);
   latestTeacherResults = yearlyResults;
 
   teacherHistoryDateRange.textContent = '';
@@ -5485,15 +5598,15 @@ function renderYearlyHistorySummary() {
     <section class="yearly-history-tables table-container">
       <div class="yearly-history-table-block">
         <h3>מחצית א׳ - שיאים</h3>
-        ${renderTeacherResultsTableMarkup(semesterAResults)}
+        ${renderTeacherResultsTableMarkup(semesterAResults.students, semesterAResults.metrics)}
       </div>
       <div class="yearly-history-table-block">
         <h3>מחצית ב׳ - שיאים</h3>
-        ${renderTeacherResultsTableMarkup(semesterBResults)}
+        ${renderTeacherResultsTableMarkup(semesterBResults.students, semesterBResults.metrics)}
       </div>
       <div class="yearly-history-table-block">
         <h3>שנתי - יחס ${teacherYearlySemesterARatio}% / ${100 - teacherYearlySemesterARatio}%</h3>
-        ${renderTeacherResultsTableMarkup(yearlyResults)}
+        ${renderTeacherResultsTableMarkup(yearlyResults, yearlyMetrics)}
       </div>
       <div class="teacher-results-actions yearly-history-actions">
         <button type="button" class="teacher-panel-button whatsapp-button" data-yearly-share-whatsapp>שליחה ל-WhatsApp</button>
@@ -6138,13 +6251,22 @@ function renderTeacherView() {
   hydrateTeacherRosterFromClass();
   syncTeacherRoster();
   syncSemesterControls();
-  const scoreEntryAllowed = canTeacherEnterScores();
+  syncLockedSeasonHistoryControls();
+  const teacherLayout = teacherClassDetailView?.querySelector('.teacher-layout');
+  if (teacherLayout) {
+    teacherLayout.classList.toggle('is-hidden', teacherSeasonLocked);
+  }
+  const scoreEntryAllowed = canTeacherEnterScores() && !teacherSeasonLocked;
   [teacherCalculateButton, teacherSaveHistoryButton, teacherPasteApplyButton, teacherClearValuesButton].forEach((button) => {
     if (button) {
       button.disabled = !scoreEntryAllowed;
-      button.title = scoreEntryAllowed ? '' : teacherScoreAccessMessage();
+      button.title = scoreEntryAllowed ? '' : (teacherSeasonLocked ? 'העונה נעולה לצפייה בלבד.' : teacherScoreAccessMessage());
     }
   });
+  if (teacherEditStudentsButton) {
+    teacherEditStudentsButton.disabled = teacherSeasonLocked;
+    teacherEditStudentsButton.title = teacherSeasonLocked ? 'העונה נעולה לצפייה בלבד.' : '';
+  }
   renderTeacherEntryTable();
   renderTeacherClassList();
 }
@@ -6160,6 +6282,10 @@ function syncTeacherStudentEditControls() {
 }
 
 function startTeacherStudentNameEdit() {
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    return;
+  }
   teacherEditRosterSnapshot = teacherRoster.map((student) => ({ ...student }));
   teacherEditMode = true;
   setTeacherEditSaveMessage('');
@@ -6347,6 +6473,12 @@ function handleTeacherEntryClick(event) {
 }
 
 async function handleTeacherClassListClick(event) {
+  const saveNameButton = event.target.closest('[data-save-class-name-id]');
+  if (saveNameButton) {
+    await saveTeacherClassNameFromList(Number(saveNameButton.dataset.saveClassNameId));
+    return;
+  }
+
   const deleteButton = event.target.closest('[data-delete-class-id]');
 
   if (deleteButton) {
@@ -7113,8 +7245,26 @@ async function init() {
       renderTeacherClassList();
     });
   }
+  if (teacherSeasonSelect) {
+    teacherSeasonSelect.addEventListener('change', async () => {
+      teacherSeason = teacherSeasonSelect.value;
+      teacherClassesEditMode = false;
+      teacherEditClassesButton.textContent = 'עריכה';
+      teacherEditClassesButton.classList.remove('is-editing-button');
+      activeTeacherClassId = null;
+      teacherClasses = [];
+      renderTeacherClassList();
+      await refreshTeacherClasses();
+      setTeacherSubview('home');
+      renderTeacherClassList();
+    });
+  }
   if (teacherNewClassButton) {
     teacherNewClassButton.addEventListener('click', () => {
+      if (teacherSeasonLocked) {
+        teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+        return;
+      }
       teacherClassForm.reset();
       teacherClassGenderSelect.value = activeTeacherGenderValue;
       teacherClassStudentCountSelect.value = studentCountSelect.value;
@@ -7125,6 +7275,10 @@ async function init() {
   }
   if (teacherEditClassesButton) {
     teacherEditClassesButton.addEventListener('click', () => {
+      if (teacherSeasonLocked) {
+        teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+        return;
+      }
       teacherClassesEditMode = !teacherClassesEditMode;
       if (!teacherClassesEditMode) {
         commitVisibleTeacherClassOrder();
@@ -7155,6 +7309,11 @@ async function init() {
   if (teacherSchoolAdminSwitchButton) { teacherSchoolAdminSwitchButton.addEventListener('click', () => applyRoute('schoolAdmin')); }
   if (teacherBackToClassDetailButton) {
     teacherBackToClassDetailButton.addEventListener('click', () => {
+      if (teacherSeasonLocked) {
+        setTeacherSubview('home');
+        renderTeacherClassList();
+        return;
+      }
       setTeacherSubview('detail');
       renderTeacherView();
     });
