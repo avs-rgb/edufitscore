@@ -2127,9 +2127,7 @@ function renderTeacherClassList() {
       : '<option value="2025-2026">2025-2026</option>';
   }
   if (teacherSeasonStatus) {
-    teacherSeasonStatus.textContent = teacherSeasonLocked
-      ? `העונה ${teacherSeason} נעולה לצפייה בלבד. אפשר לצפות, לשתף ולהוריד גרפים, אך לא לערוך.`
-      : `עונה פעילה: ${teacherSeason || teacherActiveSeason || '-'}`;
+    teacherSeasonStatus.textContent = '';
     teacherSeasonStatus.classList.toggle('is-locked', teacherSeasonLocked);
   }
   if (teacherSeasonLocked) {
