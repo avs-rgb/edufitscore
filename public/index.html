@@ -775,7 +775,7 @@
         <div class="privacy-card panel profile-card">
           <div class="privacy-header">
             <h2>פרופיל</h2>
-            <button id="profile-close-button" type="button" class="back-home-button">חזרה</button>
+            <button id="profile-close-button" type="button" class="back-home-button" data-profile-close>חזרה</button>
           </div>
           <div class="profile-sections">
             <form id="profile-details-form" class="member-login-form profile-form">
@@ -806,6 +806,12 @@
                 <button id="profile-school-request-button" type="button" class="teacher-panel-button">שליחת בקשה</button>
               </div>
               <div id="profile-school-request-message" class="login-error" role="status" aria-live="polite"></div>
+            </section>
+            <section id="profile-billing-panel" class="profile-form admin-users-panel is-hidden">
+              <h3>תשלום וגישה</h3>
+              <div id="profile-billing-status" class="school-admin-teacher-details"></div>
+              <button id="profile-billing-pay-button" type="button" class="teacher-panel-button">תשלום אונליין</button>
+              <div id="profile-billing-message" class="login-error" role="status" aria-live="polite"></div>
             </section>
             <form id="profile-password-form" class="member-login-form profile-form">
               <h3>שינוי סיסמה</h3>
@@ -1194,6 +1200,6 @@
     </main>
 
     <script src="/school-score.js?v=20260701-25" defer></script>
-    <script src="/app.js?v=20260727-seasons" defer></script>
+    <script src="/app.js?v=20260808-billing-countdown-top" defer></script>
   </body>
   </html>

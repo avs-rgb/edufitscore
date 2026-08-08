@@ -18,6 +18,9 @@ const {
   changeUserPassword,
   deactivateUser,
   listUsers,
+  extendUserTrial,
+  extendUserToAcademicYearEnd,
+  cancelUserAcademicYearAccess,
   listSchools,
   listSchoolAdminOverview,
   listSchoolScoreTables,
@@ -239,6 +242,10 @@ app.use((request, response, next) => {
   next();
 });
 app.use((request, response, next) => {
+  if (request.path === '/api/billing/webhook') {
+    express.raw({ type: 'application/json', limit: '1mb' })(request, response, next);
+    return;
+  }
   if (request.path === '/api/school-admin/score-tables/import') {
     next();
     return;
@@ -487,6 +494,18 @@ function requireTeacherOrAdmin(request, response, next) {
   next();
 }
 
+function requireBillingAccess(request, response, next) {
+  if (!request.authUser) {
+    response.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  if (request.authUser.role === 'admin' || request.authUser.billing?.accessAllowed) {
+    next();
+    return;
+  }
+  response.status(402).json({ error: 'BILLING_REQUIRED', billing: request.authUser.billing || null });
+}
+
 function requireSchoolAdmin(request, response, next) {
   if (!request.authUser) {
     response.status(401).json({ error: 'Authentication required' });
@@ -654,7 +673,7 @@ async function ensureAdminNetworkAllowed(request, response) {
 async function requireGlobalAdminReady(request, response) {
   if (!requireGlobalAdmin(request, response)) return false;
   if (!await ensureAdminNetworkAllowed(request, response)) return false;
-  if (isAdminTwoFactorBypassed()) return true;
+  if (isAdminTwoFactorBypassed() || isLocalAdminTwoFactorBypassed(request.authUser)) return true;
 
   const state = await getAdminTwoFactorState(request.authUser.id);
   if (!state?.enabled) {
@@ -666,6 +685,10 @@ async function requireGlobalAdminReady(request, response) {
 
 function isAdminTwoFactorBypassed() {
   return String(process.env.DISABLE_ADMIN_2FA || '').toLowerCase() === 'true';
+}
+
+function isLocalAdminTwoFactorBypassed(user) {
+  return process.env.NODE_ENV !== 'production' && String(user?.email || '').toLowerCase() === 'admin@edufitscore.local';
 }
 
 function securitySeverityForAction(action) {
@@ -1043,6 +1066,22 @@ app.get('/api/graph-snapshots/:id', async (request, response) => {
 
 app.get('/api/auth/me', (request, response) => {
   response.json({ user: request.authUser || null });
+});
+
+app.get('/api/billing/status', requireAuth, (request, response) => {
+  response.json({ billing: request.authUser.billing || null, configured: false, provider: process.env.PAYMENT_PROVIDER || 'manual' });
+});
+
+app.post('/api/billing/checkout', requireAuth, async (request, response) => {
+  if (request.authUser.role === 'admin' || request.authUser.billing?.exempt) {
+    response.status(400).json({ error: 'BILLING_NOT_REQUIRED' });
+    return;
+  }
+  response.status(503).json({ error: 'BILLING_PROVIDER_NOT_CONFIGURED' });
+});
+
+app.post('/api/billing/webhook', async (request, response) => {
+  response.status(503).json({ error: 'BILLING_PROVIDER_NOT_CONFIGURED' });
 });
 
 app.get('/api/schools', async (request, response) => {
@@ -1486,7 +1525,7 @@ app.get('/api/admin/inactive-users', requireAuth, async (request, response) => {
   response.json({ users: await listInactiveUsers() });
 });
 
-app.get('/api/school-admin/overview', requireSchoolAdmin, async (request, response) => {
+app.get('/api/school-admin/overview', requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     response.json(await listSchoolAdminOverview(request.authUser.id));
   } catch (error) {
@@ -1494,7 +1533,7 @@ app.get('/api/school-admin/overview', requireSchoolAdmin, async (request, respon
   }
 });
 
-app.get('/api/school-admin/score-tables', requireSchoolAdmin, async (request, response) => {
+app.get('/api/school-admin/score-tables', requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     response.json(await listSchoolScoreTables(request.authUser.id));
   } catch (error) {
@@ -1502,7 +1541,7 @@ app.get('/api/school-admin/score-tables', requireSchoolAdmin, async (request, re
   }
 });
 
-app.patch('/api/school-admin/score-table-settings', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.patch('/api/school-admin/score-table-settings', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     response.json({ settings: await updateSchoolScoreTableSettings(request.authUser.id, request.body || {}) });
   } catch (error) {
@@ -1510,7 +1549,7 @@ app.patch('/api/school-admin/score-table-settings', schoolAdminWriteRateLimit, r
   }
 });
 
-app.post('/api/school-admin/score-tables', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.post('/api/school-admin/score-tables', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const table = await createSchoolScoreTable(request.authUser.id, request.body || {});
     await logAdminAction(request.authUser.id, null, 'school_score_table_create', auditRequestDetails(request, { tableId: table.id, grade: table.grade, genderGroup: table.genderGroup }));
@@ -1521,7 +1560,7 @@ app.post('/api/school-admin/score-tables', schoolAdminWriteRateLimit, requireSch
   }
 });
 
-app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchoolAdmin, (request, response) => {
+app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchoolAdmin, requireBillingAccess, (request, response) => {
   const chunks = [];
   let size = 0;
   request.on('data', (chunk) => {
@@ -1570,7 +1609,7 @@ app.post('/api/school-admin/score-tables/import', importRateLimit, requireSchool
   });
 });
 
-app.put('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.put('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const updated = await updateSchoolScoreTable(request.authUser.id, Number(request.params.tableId), request.body || {});
     if (!updated) {
@@ -1583,7 +1622,7 @@ app.put('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, re
   }
 });
 
-app.delete('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.delete('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const deleted = await deleteSchoolScoreTable(request.authUser.id, Number(request.params.tableId));
     if (!deleted) {
@@ -1598,7 +1637,7 @@ app.delete('/api/school-admin/score-tables/:tableId', schoolAdminWriteRateLimit,
   }
 });
 
-app.patch('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.patch('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const updated = await setSchoolTeacherStatus(request.authUser.id, Number(request.params.membershipId), request.body?.status);
     if (!updated) {
@@ -1611,7 +1650,7 @@ app.patch('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLim
   }
 });
 
-app.delete('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.delete('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const deleted = await removeSchoolTeacher(request.authUser.id, Number(request.params.membershipId));
     if (!deleted) {
@@ -1624,7 +1663,7 @@ app.delete('/api/school-admin/memberships/:membershipId', schoolAdminWriteRateLi
   }
 });
 
-app.post('/api/school-admin/invites', schoolAdminWriteRateLimit, requireSchoolAdmin, async (request, response) => {
+app.post('/api/school-admin/invites', schoolAdminWriteRateLimit, requireSchoolAdmin, requireBillingAccess, async (request, response) => {
   try {
     const invite = await createSchoolInvite(request.authUser.id, request.body || {});
     const inviteUrl = `${publicBaseUrl}/?invite=${encodeURIComponent(invite.token)}#signup`;
@@ -1634,7 +1673,7 @@ app.post('/api/school-admin/invites', schoolAdminWriteRateLimit, requireSchoolAd
   }
 });
 
-app.post('/api/teacher/school-requests', teacherWriteRateLimit, requireAuth, async (request, response) => {
+app.post('/api/teacher/school-requests', teacherWriteRateLimit, requireAuth, requireBillingAccess, async (request, response) => {
   try {
     response.status(201).json({ memberships: await requestTeacherSchool(request.authUser.id, Number(request.body?.schoolId)) });
   } catch (error) {
@@ -1877,6 +1916,11 @@ app.patch('/api/admin/users/:userId/status', requireAuth, async (request, respon
   }
 
   try {
+    const targetUser = (await listUsers()).find((user) => Number(user.id) === userId);
+    if (targetUser?.role === 'admin' && !isActive) {
+      response.status(403).json({ error: 'ADMIN_STATUS_LOCKED' });
+      return;
+    }
     const user = await setUserActive(userId, isActive);
     await logAdminAction(request.authUser.id, userId, isActive ? 'enable_user' : 'disable_user', { email: user.email });
     response.json({ user });
@@ -1957,7 +2001,60 @@ app.post('/api/admin/users/:userId/reset-password', adminPasswordResetRateLimit,
   }
 });
 
-app.get('/api/teacher/classes', requireTeacherOrAdmin, async (request, response) => {
+app.post('/api/admin/users/:userId/billing/exempt', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  response.status(410).json({ error: 'BILLING_EXEMPT_DISABLED' });
+});
+
+app.post('/api/admin/users/:userId/billing/extend-trial', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  const userId = Number(request.params.userId);
+  if (!Number.isInteger(userId) || userId < 1) {
+    response.status(400).json({ error: 'INVALID_USER_ID' });
+    return;
+  }
+  try {
+    const user = await extendUserTrial(userId, 30);
+    await logAdminAction(request.authUser.id, userId, 'billing_trial_extend', auditRequestDetails(request, { days: 30 }));
+    response.json({ user });
+  } catch (error) {
+    response.status(error.message === 'USER_NOT_FOUND' ? 404 : 400).json({ error: error.message || 'BILLING_UPDATE_FAILED' });
+  }
+});
+
+app.post('/api/admin/users/:userId/billing/extend-academic-year', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  const userId = Number(request.params.userId);
+  if (!Number.isInteger(userId) || userId < 1) {
+    response.status(400).json({ error: 'INVALID_USER_ID' });
+    return;
+  }
+  try {
+    const user = await extendUserToAcademicYearEnd(userId);
+    await logAdminAction(request.authUser.id, userId, 'billing_academic_year_extend', auditRequestDetails(request, { paidUntil: user.billing?.paidUntil || '' }));
+    response.json({ user });
+  } catch (error) {
+    response.status(error.message === 'USER_NOT_FOUND' ? 404 : 400).json({ error: error.message || 'BILLING_UPDATE_FAILED' });
+  }
+});
+
+app.post('/api/admin/users/:userId/billing/cancel-access', requireAuth, async (request, response) => {
+  if (!await requireGlobalAdminReady(request, response)) return;
+  const userId = Number(request.params.userId);
+  if (!Number.isInteger(userId) || userId < 1) {
+    response.status(400).json({ error: 'INVALID_USER_ID' });
+    return;
+  }
+  try {
+    const user = await cancelUserAcademicYearAccess(userId);
+    await logAdminAction(request.authUser.id, userId, 'billing_access_cancel', auditRequestDetails(request));
+    response.json({ user });
+  } catch (error) {
+    response.status(error.message === 'USER_NOT_FOUND' ? 404 : 400).json({ error: error.message || 'BILLING_UPDATE_FAILED' });
+  }
+});
+
+app.get('/api/teacher/classes', requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   const result = await listTeacherClasses(request.authUser.id, { season: request.query.season });
   response.json({
@@ -1966,7 +2063,7 @@ app.get('/api/teacher/classes', requireTeacherOrAdmin, async (request, response)
   });
 });
 
-app.get('/api/teacher/classes/:classId/score-table', requireTeacherOrAdmin, async (request, response) => {
+app.get('/api/teacher/classes/:classId/score-table', requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   const result = await getTeacherClassScoreTable(request.authUser.id, Number(request.params.classId));
   if (!result) {
     response.status(404).json({ error: 'CLASS_NOT_FOUND' });
@@ -1975,7 +2072,7 @@ app.get('/api/teacher/classes/:classId/score-table', requireTeacherOrAdmin, asyn
   response.json(result);
 });
 
-app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (request, response) => {
+app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   const teacherClass = await getTeacherClass(request.authUser.id, Number(request.params.classId));
 
   if (!teacherClass) {
@@ -1986,7 +2083,7 @@ app.get('/api/teacher/classes/:classId/history', requireTeacherOrAdmin, async (r
   response.json({ history: await listTeacherClassHistory(teacherClass.id) });
 });
 
-app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   let deleted;
   try {
     deleted = await deleteTeacherClassHistory(
@@ -2007,7 +2104,7 @@ app.delete('/api/teacher/classes/:classId/history/:historyId', teacherWriteRateL
   response.json({ ok: true });
 });
 
-app.patch('/api/teacher/classes/:classId/history/:historyId/semester', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.patch('/api/teacher/classes/:classId/history/:historyId/semester', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   let updated;
   try {
     updated = await updateTeacherClassHistorySemester(
@@ -2029,7 +2126,7 @@ app.patch('/api/teacher/classes/:classId/history/:historyId/semester', teacherWr
   response.json({ entry: updated });
 });
 
-app.post('/api/teacher/classes', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.post('/api/teacher/classes', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   try {
     const created = await createTeacherClass(request.authUser.id, request.body || {});
     response.status(201).json({ teacherClass: created });
@@ -2048,7 +2145,7 @@ app.post('/api/teacher/classes', teacherWriteRateLimit, requireTeacherOrAdmin, a
   }
 });
 
-app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeacherOrAdmin, (request, response) => {
+app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeacherOrAdmin, requireBillingAccess, (request, response) => {
   const chunks = [];
   let size = 0;
   request.on('data', (chunk) => {
@@ -2109,7 +2206,7 @@ app.post('/api/teacher/classes/import', teacherClassImportRateLimit, requireTeac
   });
 });
 
-app.put('/api/teacher/classes/reorder', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.put('/api/teacher/classes/reorder', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds.map(Number) : [];
   try {
     response.json(await reorderTeacherClasses(request.authUser.id, orderedIds));
@@ -2119,7 +2216,7 @@ app.put('/api/teacher/classes/reorder', teacherWriteRateLimit, requireTeacherOrA
   }
 });
 
-app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   let updated;
   try {
     updated = await updateTeacherClass(request.authUser.id, Number(request.params.classId), request.body || {});
@@ -2140,7 +2237,7 @@ app.put('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOr
   response.json({ teacherClass: updated });
 });
 
-app.delete('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, async (request, response) => {
+app.delete('/api/teacher/classes/:classId', teacherWriteRateLimit, requireTeacherOrAdmin, requireBillingAccess, async (request, response) => {
   let deleted;
   try {
     deleted = await deleteTeacherClass(request.authUser.id, Number(request.params.classId));

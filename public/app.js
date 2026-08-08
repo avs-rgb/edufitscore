@@ -223,6 +223,10 @@ const profileSchoolRequestControls = document.querySelector('#profile-school-req
 const profileSchoolRequestSelect = document.querySelector('#profile-school-request-select');
 const profileSchoolRequestButton = document.querySelector('#profile-school-request-button');
 const profileSchoolRequestMessage = document.querySelector('#profile-school-request-message');
+const profileBillingPanel = document.querySelector('#profile-billing-panel');
+const profileBillingStatus = document.querySelector('#profile-billing-status');
+const profileBillingPayButton = document.querySelector('#profile-billing-pay-button');
+const profileBillingMessage = document.querySelector('#profile-billing-message');
 const profilePasswordForm = document.querySelector('#profile-password-form');
 const profileAdminSecurityPanel = document.querySelector('#profile-admin-security-panel');
 const profileSessionsList = document.querySelector('#profile-sessions-list');
@@ -351,6 +355,8 @@ let latestTeacherResults = [];
 let latestStudentResult = null;
 let currentEntryMode = 'home';
 let previousEntryMode = 'home';
+let appRouteStack = [];
+let lastTouchFallbackAt = 0;
 let accessibilityTextScale = 1;
 let authUser = null;
 let teacherClasses = [];
@@ -363,7 +369,7 @@ let teacherYearlySemesterARatio = 50;
 let teacherEditMode = false;
 let dragSourceIndex = null;
 let teacherClassesEditMode = false;
-let teacherSeason = '2025-2026';
+let teacherSeason = '';
 let teacherActiveSeason = '2025-2026';
 let teacherAvailableSeasons = ['2025-2026'];
 let teacherSeasonLocked = false;
@@ -509,9 +515,16 @@ function addTapFallback(element, handler) {
     return;
   }
 
-  element.addEventListener('click', handler);
+  element.addEventListener('click', (event) => {
+    if (Date.now() - lastTouchFallbackAt < 700) {
+      event.preventDefault();
+      return;
+    }
+    handler(event);
+  });
   element.addEventListener('touchend', (event) => {
     event.preventDefault();
+    lastTouchFallbackAt = Date.now();
     handler(event);
   }, { passive: false });
 }
@@ -660,7 +673,7 @@ function parseRouteHash() {
 }
 
 function updateRoute(mode, replace = false) {
-  const routeHash = mode === 'schoolAdmin' ? 'school-admin' : mode === 'schoolAdminScoreTables' ? 'school-admin-score-tables' : mode === 'adminSecurity' ? 'admin-security' : mode;
+  const routeHash = routeToUrlMode(mode);
   const targetHash = mode === 'home' ? '' : `#${routeHash}`;
   const url = new URL(window.location.href);
 
@@ -673,6 +686,10 @@ function updateRoute(mode, replace = false) {
 
   const nextUrl = `${url.pathname}${url.search}${targetHash}`;
 
+  if (nextUrl === `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    return;
+  }
+
   if (replace) {
     window.history.replaceState({ mode }, '', nextUrl);
     return;
@@ -680,6 +697,49 @@ function updateRoute(mode, replace = false) {
 
   window.history.pushState({ mode }, '', nextUrl);
 }
+
+function rememberCurrentRouteBeforeNavigation(nextMode, replace) {
+  if (replace || nextMode === currentEntryMode) {
+    return;
+  }
+  if (currentEntryMode && appRouteStack[appRouteStack.length - 1] !== currentEntryMode) {
+    appRouteStack.push(currentEntryMode);
+  }
+  if (appRouteStack.length > 20) {
+    appRouteStack = appRouteStack.slice(-20);
+  }
+}
+
+function routeToUrlMode(mode) {
+  return mode === 'schoolAdmin' ? 'school-admin' : mode === 'schoolAdminScoreTables' ? 'school-admin-score-tables' : mode === 'adminSecurity' ? 'admin-security' : mode;
+}
+
+function closeProfileView(event) {
+  event?.preventDefault();
+  const targetMode = authUser?.role === 'admin' ? 'admin' : 'member-classes';
+  appRouteStack = [];
+  memberProfileView?.classList.add('is-hidden');
+  if (targetMode === 'admin') {
+    adminView?.classList.remove('is-hidden');
+    appShell?.classList.add('is-hidden');
+  } else {
+    appShell?.classList.remove('is-hidden');
+  }
+  renderRouteFromHistory(targetMode);
+  updateRoute(targetMode, true);
+}
+
+if (profileCloseButton) {
+  profileCloseButton.addEventListener('click', closeProfileView);
+  profileCloseButton.addEventListener('touchend', closeProfileView, { passive: false });
+}
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-profile-close]')) {
+    closeProfileView(event);
+  }
+}, true);
+
 
 function formatClassName(name) {
   const value = String(name || '').trim();
@@ -1638,9 +1698,11 @@ async function deleteSelectedTeacherHistoryEntry(historyId) {
 function syncMemberControls() {
   const isAdmin = authUser?.role === 'admin';
   const isSchoolAdmin = Boolean(authUser?.isSchoolAdmin);
+  const billing = authUser?.billing || null;
   adminNavButton.textContent = 'אזור ניהול';
   if (topUserLabel) {
-    topUserLabel.textContent = authUser?.email || '';
+    const billingText = topBillingLabelText(billing);
+    topUserLabel.textContent = authUser?.email ? `${authUser.email}${billingText}` : '';
     topUserLabel.classList.toggle('is-hidden', !authUser?.email);
   }
   adminNavButton.classList.toggle('is-hidden', !isAdmin);
@@ -1650,6 +1712,76 @@ function syncMemberControls() {
   memberProfileButton.classList.toggle('is-hidden', !authUser);
   memberLogoutButton.classList.toggle('is-hidden', !authUser);
   teacherSchoolAdminSwitchButton?.classList.toggle('is-hidden', !isSchoolAdmin);
+}
+
+function formatBillingDate(value) {
+  const date = new Date(value || '');
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
+}
+
+function topBillingLabelText(billing) {
+  if (!billing?.showInTopLabel) return '';
+  if (!['trialing', 'active'].includes(billing.status)) return '';
+  if (!Number.isFinite(Number(billing.daysLeft)) || Number(billing.daysLeft) < 1 || Number(billing.daysLeft) >= 60) return '';
+  return ` · ${Number(billing.daysLeft)} days left`;
+}
+
+function billingStatusText(billing) {
+  if (!billing) return 'אין נתוני תשלום.';
+  if (billing.exempt) return 'חשבון מנהל.';
+  if (billing.status === 'trialing') return `תקופת ניסיון פעילה. נותרו ${billing.daysLeft} ימים.`;
+  if (billing.status === 'active') return `גישה פעילה עד ${formatBillingDate(billing.paidUntil || billing.accessEndsAt)}.`;
+  return 'תקופת הניסיון הסתיימה. מנהל המערכת צריך לאשר את החשבון.';
+}
+
+function billingStatusShortText(billing) {
+  if (!billing) return '-';
+  if (billing.exempt) return 'מנהל';
+  if (billing.status === 'trialing') return `ניסיון: ${billing.daysLeft} ימים`;
+  if (billing.status === 'active') return `עד ${formatBillingDate(billing.paidUntil || billing.accessEndsAt)}`;
+  return 'פג תוקף';
+}
+
+function renderAdminBillingCell(user) {
+  if (user.role === 'admin') {
+    return `<div>${escapeHtml(billingStatusShortText(user.billing))}</div>`;
+  }
+  const status = user.billing?.status || 'expired';
+  const canExtendTrial = status === 'trialing' || status === 'expired';
+  const canExtendYear = !user.billing?.hasAcademicYearAccess;
+  const canCancelYear = status === 'active' && Boolean(user.billing?.paidUntil);
+  return `
+    <div>${escapeHtml(billingStatusShortText(user.billing))}</div>
+    <div class="admin-actions-stack">
+      ${canExtendTrial ? `<button type="button" class="back-home-button" data-billing-action="trial" data-billing-user-id="${escapeAttr(user.id)}">הארכת ניסיון 30 יום</button>` : ''}
+      ${canExtendYear ? `<button type="button" class="back-home-button" data-billing-action="year" data-billing-user-id="${escapeAttr(user.id)}">הארכה עד סוף השנה</button>` : ''}
+      ${canCancelYear ? `<button type="button" class="back-home-button" data-billing-action="cancel" data-billing-user-id="${escapeAttr(user.id)}">ביטול הארכה</button>` : ''}
+    </div>
+  `;
+}
+
+function renderProfileBilling() {
+  if (!profileBillingPanel || !profileBillingStatus) return;
+  const isAdmin = authUser?.role === 'admin';
+  const billing = authUser?.billing || null;
+  profileBillingPanel.classList.toggle('is-hidden', isAdmin || !authUser);
+  if (isAdmin || !authUser) return;
+  profileBillingStatus.innerHTML = `<p>${escapeHtml(billingStatusText(billing))}</p>`;
+  profileBillingPayButton?.classList.add('is-hidden');
+  if (profileBillingMessage) profileBillingMessage.textContent = billing?.exempt ? '' : 'תשלום אונליין עדיין לא פעיל. אישור החשבון מתבצע כרגע על ידי מנהל המערכת.';
+}
+
+async function startBillingCheckout() {
+  if (!profileBillingMessage) return;
+  profileBillingMessage.textContent = 'פותחים תשלום מאובטח...';
+  const response = await apiFetch('/api/billing/checkout', { method: 'POST' });
+  if (!response.ok) {
+    profileBillingMessage.textContent = response.status === 503 ? 'תשלום אונליין עדיין לא פעיל. אישור החשבון מתבצע כרגע על ידי מנהל המערכת.' : 'לא ניתן לפתוח תשלום כרגע.';
+    return;
+  }
+  const data = await response.json();
+  if (data.url) window.location.href = data.url;
 }
 
 function currentTeacherClass() {
@@ -1742,13 +1874,21 @@ function setEntryMode(mode) {
   const showAdminSecurity = mode === 'adminSecurity' && authUser?.role === 'admin';
   const showSchoolAdmin = mode === 'schoolAdmin' && authUser?.isSchoolAdmin;
   const showSchoolAdminScoreTables = mode === 'schoolAdminScoreTables' && authUser?.isSchoolAdmin;
+  const showProfile = mode === 'profile';
   const showTeacherShell = memberMode && authUser?.role === 'teacher' && !showSchoolAdmin;
 
-  memberLoginView.classList.toggle('is-hidden', !showLogin);
-  memberSignupView.classList.toggle('is-hidden', !showSignup);
-  verifyEmailView?.classList.toggle('is-hidden', mode !== 'verifyEmail');
-  adminView.classList.toggle('is-hidden', !showAdmin);
-  adminSecurityView?.classList.toggle('is-hidden', !showAdminSecurity);
+  Object.entries(staticViews).forEach(([key, view]) => {
+    const visible = (key === 'login' && showLogin)
+      || (key === 'signup' && showSignup)
+      || (key === 'verifyEmail' && mode === 'verifyEmail')
+      || (key === 'admin' && showAdmin)
+      || (key === 'adminSecurity' && showAdminSecurity)
+      || (key === 'schoolAdmin' && showSchoolAdmin)
+      || (key === 'schoolAdminScoreTables' && showSchoolAdminScoreTables)
+      || (key === 'profile' && showProfile)
+      || (['privacy', 'terms', 'accessibility', 'contact', 'twoFactor', 'forgotPassword', 'resetPassword'].includes(key) && mode === key);
+    view?.classList.toggle('is-hidden', !visible);
+  });
   adminNavButton?.classList.toggle('is-active', showAdmin);
   adminSecurityNavButton?.classList.toggle('is-active', showAdminSecurity);
   adminSecurityAdminTab?.classList.toggle('is-active', showAdmin);
@@ -1757,17 +1897,8 @@ function setEntryMode(mode) {
   adminSecurityNavButton?.setAttribute('aria-selected', showAdminSecurity ? 'true' : 'false');
   adminSecurityAdminTab?.setAttribute('aria-selected', showAdmin ? 'true' : 'false');
   adminSecurityCurrentTab?.setAttribute('aria-selected', showAdminSecurity ? 'true' : 'false');
-  schoolAdminView?.classList.toggle('is-hidden', !showSchoolAdmin);
-  schoolAdminScoreTablesView?.classList.toggle('is-hidden', !showSchoolAdminScoreTables);
   appShell.classList.toggle('is-hidden', mode === 'home' || Boolean(staticViews[mode]) || showLogin || showSignup || showAdmin || showAdminSecurity || showSchoolAdmin || showSchoolAdminScoreTables || (!showTeacherShell && memberMode));
   topControls.classList.toggle('is-hidden', memberMode);
-  Object.entries(staticViews).forEach(([key, view]) => {
-    if (key === 'login' || key === 'admin' || key === 'adminSecurity' || key === 'schoolAdmin' || key === 'schoolAdminScoreTables') {
-      return;
-    }
-
-    view.classList.toggle('is-hidden', mode !== key);
-  });
 
   const guestMode = mode === 'guest';
   maleStudentTabButton?.classList.toggle('is-hidden', memberMode);
@@ -1777,6 +1908,27 @@ function setEntryMode(mode) {
 }
 
 function applyRoute(mode, replace = false) {
+  const protectedBillingModes = new Set(['member', 'member-classes', 'member-new-class', 'member-class', 'member-history', 'schoolAdmin', 'schoolAdminScoreTables']);
+  if (authUser && authUser.role !== 'admin' && authUser.billing?.accessAllowed === false && protectedBillingModes.has(mode)) {
+    applyRoute('profile', true);
+    return;
+  }
+  rememberCurrentRouteBeforeNavigation(mode, replace);
+  if (mode === 'profile' && !authUser) {
+    applyRoute('member', true);
+    return;
+  }
+  renderRouteFromHistory(mode);
+  updateRoute(mode, replace);
+}
+
+function renderRouteFromHistory(mode) {
+  const protectedBillingModes = new Set(['member', 'member-classes', 'member-new-class', 'member-class', 'member-history', 'schoolAdmin', 'schoolAdminScoreTables']);
+  if (authUser && authUser.role !== 'admin' && authUser.billing?.accessAllowed === false && protectedBillingModes.has(mode)) {
+    setEntryMode('profile');
+    fillProfileForm();
+    return;
+  }
   setEntryMode(mode);
 
   if (mode === 'guest') {
@@ -1820,14 +1972,9 @@ function applyRoute(mode, replace = false) {
     loadSchoolScoreTables();
   } else if (mode === 'profile' && authUser) {
     fillProfileForm();
-  } else if (mode === 'profile') {
-    applyRoute('member', true);
-    return;
   } else if (mode === 'verifyEmail') {
     verifyEmailFromRoute();
   }
-
-  updateRoute(mode, replace);
 }
 
 function formatCompactEntry(seconds) {
@@ -3680,6 +3827,7 @@ async function loadAdminUsers() {
           ${renderAdminUsersHeader('עיר', 'city')}
           ${renderAdminUsersHeader('בית ספר', 'school')}
           ${renderAdminUsersHeader('תפקיד', 'role')}
+          ${renderAdminUsersHeader('תשלום', '')}
           ${renderAdminUsersHeader('עדכון', 'updatedAt')}
         </tr>
       </thead>
@@ -3689,18 +3837,20 @@ async function loadAdminUsers() {
             <td>${user.isActive ? 'פעיל' : 'מושבת'}</td>
             <td class="admin-actions-cell">
               <div class="admin-actions-stack">
-              <button
-                type="button"
-                class="status-toggle ${user.isActive ? 'is-active' : ''}"
-                data-status-user-id="${escapeAttr(user.id)}"
-                data-status-user-name="${escapeAttr(user.fullName || user.email)}"
-                data-status-user-active="${user.isActive ? 'true' : 'false'}"
-              >
-                <span class="status-toggle-knob"></span>
-                <span class="status-toggle-text">${user.isActive ? 'השבתה' : 'הפעלה'}</span>
-              </button>
+              ${user.role === 'admin' ? '<span class="admin-status-locked">מנהל קבוע</span>' : `
+                <button
+                  type="button"
+                  class="status-toggle ${user.isActive ? 'is-active' : ''}"
+                  data-status-user-id="${escapeAttr(user.id)}"
+                  data-status-user-name="${escapeAttr(user.fullName || user.email)}"
+                  data-status-user-active="${user.isActive ? 'true' : 'false'}"
+                >
+                  <span class="status-toggle-knob"></span>
+                  <span class="status-toggle-text">${user.isActive ? 'השבתה' : 'הפעלה'}</span>
+                </button>
+              `}
               <button type="button" class="back-home-button admin-password-button" data-reset-password-user-id="${escapeAttr(user.id)}" data-reset-password-user-name="${escapeAttr(user.fullName || user.email)}">איפוס סיסמה</button>
-              ${user.isActive ? '' : `<button type="button" class="danger-button admin-permanent-delete-button" data-permanent-delete-user-id="${escapeAttr(user.id)}" data-permanent-delete-user-name="${escapeAttr(user.fullName || user.email)}">מחיקה</button>`}
+              ${user.role === 'admin' || user.isActive ? '' : `<button type="button" class="danger-button admin-permanent-delete-button" data-permanent-delete-user-id="${escapeAttr(user.id)}" data-permanent-delete-user-name="${escapeAttr(user.fullName || user.email)}">מחיקה</button>`}
               </div>
             </td>
             <td class="admin-name-cell">${formatAdminName(user)}</td>
@@ -3709,12 +3859,29 @@ async function loadAdminUsers() {
             <td>${escapeHtml(user.city || '')}</td>
             <td>${escapeHtml(user.schoolName || '')}</td>
             <td>${formatAdminRole(user)}</td>
+            <td class="admin-actions-cell">${renderAdminBillingCell(user)}</td>
             <td class="admin-date-cell">${formatAdminDateTime(user.updatedAt)}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
   ` : '<p>אין פרופילים.</p>';
+}
+
+async function updateAdminUserBilling(userId, action) {
+  const endpoints = {
+    trial: { url: `/api/admin/users/${encodeURIComponent(userId)}/billing/extend-trial`, body: {} },
+    year: { url: `/api/admin/users/${encodeURIComponent(userId)}/billing/extend-academic-year`, body: {} },
+    cancel: { url: `/api/admin/users/${encodeURIComponent(userId)}/billing/cancel-access`, body: {} },
+  };
+  const config = endpoints[action];
+  if (!config) return;
+  const response = await apiFetch(config.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config.body) });
+  if (!response.ok) {
+    window.alert('לא ניתן לעדכן תשלום כרגע.');
+    return;
+  }
+  await loadAdminUsers();
 }
 
 async function loadAdminAuditLog() {
@@ -5075,6 +5242,7 @@ async function fillProfileForm() {
   });
   profileDeactivateForm.classList.toggle('is-hidden', isAdmin);
   profileAdminSecurityPanel?.classList.toggle('is-hidden', !isAdmin);
+  renderProfileBilling();
   if (isAdmin) {
     await loadAdminTwoFactorStatus();
     await confirmAdminTwoFactorRecoveryRegeneration();
@@ -7602,7 +7770,6 @@ async function init() {
     input?.addEventListener('input', reloadAdminSecurityEventsFromFilters);
     input?.addEventListener('change', reloadAdminSecurityEventsFromFilters);
   });
-  if (profileCloseButton) { profileCloseButton.addEventListener('click', () => applyRoute(authUser?.role === 'admin' ? 'admin' : 'member')); }
   if (profileDetailsForm) {
     profileDetailsForm.addEventListener('submit', saveProfileDetails);
     profileDetailsForm.querySelectorAll('input[type="tel"]').forEach((input) => {
@@ -7610,6 +7777,7 @@ async function init() {
     });
   }
   if (profileSchoolRequestButton) { profileSchoolRequestButton.addEventListener('click', requestAdditionalSchool); }
+  if (profileBillingPayButton) { profileBillingPayButton.addEventListener('click', startBillingCheckout); }
   if (profileLogoutOtherSessionsButton) { profileLogoutOtherSessionsButton.addEventListener('click', logoutOtherSessions); }
   if (profileSessionsList) {
     profileSessionsList.addEventListener('click', (event) => {
@@ -7673,6 +7841,7 @@ async function init() {
       const statusButton = event.target.closest('[data-status-user-id]');
       const passwordButton = event.target.closest('[data-reset-password-user-id]');
       const permanentDeleteButton = event.target.closest('[data-permanent-delete-user-id]');
+      const billingButton = event.target.closest('[data-billing-action]');
 
       if (sortButton) {
         const key = sortButton.dataset.adminSortKey;
@@ -7701,6 +7870,11 @@ async function init() {
 
       if (permanentDeleteButton) {
         openAdminPermanentDeleteModal(permanentDeleteButton);
+        return;
+      }
+
+      if (billingButton) {
+        updateAdminUserBilling(billingButton.dataset.billingUserId, billingButton.dataset.billingAction);
       }
     });
   }
@@ -7930,8 +8104,13 @@ async function init() {
     }
   });
   window.addEventListener('popstate', () => {
+    appRouteStack = [];
     const mode = parseRouteHash();
-    applyRoute(mode, true);
+    renderRouteFromHistory(mode);
+  });
+  window.addEventListener('hashchange', () => {
+    appRouteStack = [];
+    renderRouteFromHistory(parseRouteHash());
   });
   applyAccessibilityTextScale();
 }
