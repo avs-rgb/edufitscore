@@ -1717,7 +1717,7 @@ function syncMemberControls() {
 function formatBillingDate(value) {
   const date = new Date(value || '');
   if (!Number.isFinite(date.getTime())) return '';
-  return date.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
+  return `${date.getUTCDate()}.${date.getUTCMonth() + 1}.${date.getUTCFullYear()}`;
 }
 
 function topBillingLabelText(billing) {
