@@ -144,7 +144,7 @@ function testRouteBackButtonGuards() {
   assert(app.includes('nextUrl === `${window.location.pathname}${window.location.search}${window.location.hash}`'), 'routing should not push duplicate current URLs');
   assert(app.includes('function closeProfileView(event)'), 'profile close should have a dedicated deterministic handler');
   assert(html.includes('id="profile-close-button"') && html.includes('data-profile-close'), 'profile close should have a dedicated data hook');
-  assert(html.includes('/app.js?v=20260809-billing-date-utc'), 'app.js version should be bumped after billing control fixes to avoid stale cached code');
+  assert(html.includes('/app.js?v=20260809-2fa-enter-submit'), 'app.js version should be bumped after billing control fixes to avoid stale cached code');
   assert(app.includes("profileCloseButton.addEventListener('click', closeProfileView)"), 'profile back button should be wired immediately for clicks');
   assert(app.includes("profileCloseButton.addEventListener('touchend', closeProfileView"), 'profile back button should be wired immediately for touch');
   assert(app.includes("document.addEventListener('click', (event) =>") && app.includes("event.target.closest('[data-profile-close]')") && app.includes('}, true);'), 'profile close should also be handled in capture phase');

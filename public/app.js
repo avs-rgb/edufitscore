@@ -4908,6 +4908,7 @@ async function handleMemberLogin(event) {
       ? `הקלידו קוד מאפליקציית אימות עבור ${data.email}, או קוד שחזור.`
       : 'הקלידו קוד מאפליקציית אימות או קוד שחזור.';
     applyRoute('twoFactor');
+    requestAnimationFrame(() => document.querySelector('#member-2fa-code')?.focus());
     return;
   }
 
