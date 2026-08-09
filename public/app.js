@@ -269,6 +269,7 @@ const teacherStudentCountLabel = document.querySelector('#teacher-student-count-
 const studentCountSelect = document.querySelector('#student-count');
 const teacherCalculateButton = document.querySelector('#teacher-calculate');
 const teacherEditStudentsButton = document.querySelector('#teacher-edit-students');
+const teacherAddStudentButton = document.querySelector('#teacher-add-student');
 const teacherSaveStudentNamesButton = document.querySelector('#teacher-save-student-names');
 const teacherCancelStudentNamesButton = document.querySelector('#teacher-cancel-student-names');
 const teacherSaveClassButton = document.querySelector('#teacher-save-class');
@@ -5530,7 +5531,9 @@ function renderTeacherEntryTable() {
       teacherEntryTable.innerHTML = '<p>בטבלת הציונים של הכיתה לא הוגדרו מקצועות להזנה.</p>';
       return;
     }
-    syncTeacherRoster();
+    if (!teacherEditMode) {
+      syncTeacherRoster();
+    }
     const semesterValues = currentSemesterValues();
     const isYearly = activeTeacherSemester === 'yearly';
     const scoreEntryAllowed = canTeacherEnterScores();
@@ -6415,8 +6418,10 @@ async function saveTeacherHistorySnapshot() {
 }
 
 function renderTeacherView() {
-  hydrateTeacherRosterFromClass();
-  syncTeacherRoster();
+  if (!teacherEditMode) {
+    hydrateTeacherRosterFromClass();
+    syncTeacherRoster();
+  }
   syncSemesterControls();
   syncLockedSeasonHistoryControls();
   const teacherLayout = teacherClassDetailView?.querySelector('.teacher-layout');
@@ -6440,12 +6445,40 @@ function renderTeacherView() {
 
 function syncTeacherStudentEditControls() {
   teacherEditStudentsButton?.classList.toggle('is-hidden', teacherEditMode);
+  teacherAddStudentButton?.classList.toggle('is-hidden', !teacherEditMode);
   teacherSaveStudentNamesButton?.classList.toggle('is-hidden', !teacherEditMode);
   teacherCancelStudentNamesButton?.classList.toggle('is-hidden', !teacherEditMode);
   if (teacherSaveStudentNamesButton && !teacherEditMode) {
     teacherSaveStudentNamesButton.disabled = false;
     teacherSaveStudentNamesButton.textContent = 'שמירה';
   }
+}
+
+function addTeacherStudent() {
+  if (!teacherEditMode) {
+    return;
+  }
+  if (teacherSeasonLocked) {
+    teacherClassFormError.textContent = 'העונה נעולה לצפייה בלבד.';
+    return;
+  }
+  if (teacherRoster.length >= 45) {
+    setTeacherEditSaveMessage('ניתן להוסיף עד 45 תלמידים.');
+    return;
+  }
+
+  const nextIndex = teacherRoster.length;
+  teacherRoster.push({
+    id: `student-${Date.now()}-${nextIndex + 1}`,
+    name: `${activeTeacherStudentLabel()} ${nextIndex + 1}`,
+  });
+  studentCountSelect.value = String(teacherRoster.length);
+  renderTeacherView();
+  requestAnimationFrame(() => {
+    const input = teacherEntryTable?.querySelector(`[data-student-name-index="${nextIndex}"]`);
+    input?.focus();
+    input?.select();
+  });
 }
 
 function startTeacherStudentNameEdit() {
@@ -6473,13 +6506,12 @@ async function saveTeacherStudentNameEdit() {
   }
   try {
     setTeacherEditSaveMessage('');
-    syncTeacherRoster();
     const activeClass = currentTeacherClass();
     const payload = {
       name: teacherClassNameInput.value.trim() || activeClass?.name || 'כיתה ללא שם',
       grade: teacherClassGradeSelect.value,
       gender: activeTeacherGenderValue,
-      studentCount: Number(studentCountSelect.value),
+      studentCount: teacherRoster.length,
       roster: teacherRoster,
       values: normalizeTeacherClassValues(teacherClassValues),
     };
@@ -7349,6 +7381,10 @@ async function init() {
     teacherEditStudentsButton.addEventListener('click', startTeacherStudentNameEdit);
   }
   teacherEditStudentsButton?.closest('.teacher-tools-actions')?.addEventListener('click', (event) => {
+    if (event.target.closest('#teacher-add-student')) {
+      addTeacherStudent();
+      return;
+    }
     if (event.target.closest('#teacher-save-student-names')) {
       saveTeacherStudentNameEdit();
       return;
