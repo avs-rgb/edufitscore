@@ -3785,6 +3785,57 @@ tbody tr:nth-child(5n + 1) {
   }
 }
 
+@media (max-width: 900px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  .app-shell,
+  .top-controls,
+  .view-panel,
+  .layout,
+  .form-panel,
+  .results-panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .top-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .student-source-panel,
+  .student-school-score-card,
+  #student-school-grade-card,
+  #student-school-group-card,
+  #student-default-class-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  #student-school-grade-buttons,
+  #student-school-group-buttons,
+  .class-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  #student-school-grade-buttons,
+  #student-school-group-buttons,
+  .class-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (pointer: coarse) {
   .page::before {
     display: none;
