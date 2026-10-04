@@ -3187,6 +3187,10 @@ p {
   background: linear-gradient(180deg, #fffaf4, #fff6ee);
 }
 
+.teacher-mobile-subject-control {
+  display: none;
+}
+
 .teacher-results-panel {
   flex: 1;
   min-width: 0;
@@ -3821,6 +3825,31 @@ tbody tr:nth-child(5n + 1) {
 
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .teacher-mobile-subject-control {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 12px;
+  }
+
+  .teacher-mobile-subject-control.is-hidden {
+    display: none !important;
+  }
+
+  .teacher-entry-panel .teacher-entry-table {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .teacher-entry-panel .teacher-entry-table th,
+  .teacher-entry-panel .teacher-entry-table td {
+    white-space: normal;
+  }
+
+  .teacher-entry-panel .teacher-entry-table input {
+    width: 100%;
+    min-width: 0;
   }
 
   #student-school-grade-buttons,

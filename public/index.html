@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EduFitScore</title>
-    <link rel="stylesheet" href="/styles.css?v=20260809-mobile-top-row" />
+    <link rel="stylesheet" href="/styles.css?v=20260809-mobile-subject-entry" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">דלג לתוכן הראשי</a>
@@ -1117,6 +1117,10 @@
                 <button id="teacher-clear-values" type="button" class="back-home-button">נקה ציונים</button>
                 <span id="teacher-edit-save-message" class="teacher-save-status" role="status" aria-live="polite"></span>
               </div>
+              <div id="teacher-mobile-subject-control" class="teacher-mobile-subject-control is-hidden">
+                <label class="field-label" for="teacher-mobile-subject">מקצוע</label>
+                <select id="teacher-mobile-subject" class="teacher-sort-select"></select>
+              </div>
               <p id="teacher-entry-message" class="teacher-save-status" role="status" aria-live="polite"></p>
               <div id="teacher-entry-table" class="table-container"></div>
             </section>
@@ -1201,6 +1205,6 @@
     </main>
 
     <script src="/school-score.js?v=20260701-25" defer></script>
-    <script src="/app.js?v=20260809-add-student-edit" defer></script>
+    <script src="/app.js?v=20260809-mobile-subject-entry" defer></script>
   </body>
   </html>

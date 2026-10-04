@@ -337,6 +337,8 @@ const teacherInvalidScoreCloseButton = document.querySelector('#teacher-invalid-
 const downloadCsvButton = document.querySelector('#download-csv');
 const shareWhatsappButton = document.querySelector('#share-whatsapp');
 const teacherEntryTable = document.querySelector('#teacher-entry-table');
+const teacherMobileSubjectControl = document.querySelector('#teacher-mobile-subject-control');
+const teacherMobileSubjectSelect = document.querySelector('#teacher-mobile-subject');
 const teacherResultsTable = document.querySelector('#teacher-results-table');
 const teacherSaveHistoryButton = document.querySelector('#teacher-save-history');
 const teacherPasteBox = document.querySelector('#teacher-paste-box');
@@ -366,6 +368,7 @@ let teacherClassValues = {};
 let activeTeacherClassId = null;
 let activeTeacherSemester = 'a';
 let activeTeacherHistorySemester = 'a';
+let teacherMobileMetricKey = '';
 let teacherYearlySemesterARatio = 50;
 let teacherEditMode = false;
 let dragSourceIndex = null;
@@ -2135,6 +2138,26 @@ function sheetMetrics(sheet = selectedSheet()) {
     return sheet.table.subjects.map((subject) => ({ key: subject.id, label: subject.name }));
   }
   return [];
+}
+
+function isTeacherMobileSubjectMode() {
+  return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
+}
+
+function syncTeacherMobileSubjectControl(metrics) {
+  const enabled = isTeacherMobileSubjectMode() && activeTeacherSemester !== 'yearly' && metrics.length > 1;
+  teacherMobileSubjectControl?.classList.toggle('is-hidden', !enabled);
+  if (!enabled || !teacherMobileSubjectSelect) {
+    return metrics;
+  }
+
+  const selectedMetric = metrics.find((metric) => metric.key === teacherMobileMetricKey) || metrics[0];
+  teacherMobileMetricKey = selectedMetric.key;
+  teacherMobileSubjectSelect.innerHTML = metrics
+    .map((metric) => `<option value="${escapeAttr(metric.key)}" ${metric.key === teacherMobileMetricKey ? 'selected' : ''}>${escapeHtml(metric.label)}</option>`)
+    .join('');
+  teacherMobileSubjectSelect.value = teacherMobileMetricKey;
+  return [selectedMetric];
 }
 
 function createStudentOptions() {
@@ -5528,6 +5551,7 @@ function renderTeacherEntryTable() {
     }
     const metrics = sheetMetrics(sheet);
     if (!metrics.length) {
+      teacherMobileSubjectControl?.classList.add('is-hidden');
       teacherEntryTable.innerHTML = '<p>בטבלת הציונים של הכיתה לא הוגדרו מקצועות להזנה.</p>';
       return;
     }
@@ -5537,6 +5561,7 @@ function renderTeacherEntryTable() {
     const semesterValues = currentSemesterValues();
     const isYearly = activeTeacherSemester === 'yearly';
     const scoreEntryAllowed = canTeacherEnterScores();
+    const visibleMetrics = syncTeacherMobileSubjectControl(metrics);
 
     teacherEntryTable.innerHTML = `
       <table class="teacher-entry-table">
@@ -5544,7 +5569,7 @@ function renderTeacherEntryTable() {
         <thead>
           <tr>
             <th>${escapeHtml(activeTeacherStudentLabel())}</th>
-            ${metrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('')}
+            ${visibleMetrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -5563,7 +5588,7 @@ function renderTeacherEntryTable() {
                   <button type="button" class="teacher-order-button teacher-drag-handle" data-student-index="${index}" aria-label="גרירת תלמיד לשינוי מיקום">גרירה</button>
                 </div>
               </td>
-              ${metrics.map((metric) => `
+              ${visibleMetrics.map((metric) => `
                 <td>
                   <input
                     data-student-index="${index}"
@@ -5806,10 +5831,13 @@ function collectTeacherStudents() {
 
   const rawStudents = teacherRoster.map((student, studentIndex) => ({
     studentName: student.name,
-    values: Object.fromEntries(metrics.map((metric) => {
+    values: metrics.reduce((values, metric) => {
       const input = teacherEntryTable.querySelector(`[data-student-index="${studentIndex}"][data-metric-key="${metric.key}"]`);
-      return [metric.key, teacherEntryValue(input?.value || '', sheet)];
-    })),
+      values[metric.key] = input
+        ? teacherEntryValue(input.value || '', sheet)
+        : teacherEntryValue(currentSemesterValues()?.[student.id]?.[metric.key] || '', sheet);
+      return values;
+    }, {}),
   }));
 
   return normalizeTeacherTimeInputs(rawStudents);
@@ -5825,12 +5853,14 @@ function syncTeacherClassValuesFromInputs() {
     return;
   }
   const metrics = sheetMetrics(sheet);
-  const nextValues = {};
+  const nextValues = { ...currentSemesterValues() };
   teacherRoster.forEach((student, studentIndex) => {
-    const values = {};
+    const values = { ...(nextValues[student.id] || {}) };
     metrics.forEach((metric) => {
       const input = teacherEntryTable.querySelector(`[data-student-index="${studentIndex}"][data-metric-key="${metric.key}"]`);
-      values[metric.key] = teacherEntryValue(input?.value || '', sheet);
+      if (input) {
+        values[metric.key] = teacherEntryValue(input.value || '', sheet);
+      }
     });
     nextValues[student.id] = values;
   });
@@ -7361,6 +7391,13 @@ async function init() {
     teacherEntryTable.addEventListener('dragover', handleTeacherDragOver);
     teacherEntryTable.addEventListener('drop', handleTeacherDrop);
     teacherEntryTable.addEventListener('dragend', handleTeacherDragEnd);
+  }
+  if (teacherMobileSubjectSelect) {
+    teacherMobileSubjectSelect.addEventListener('change', () => {
+      syncTeacherClassValuesFromInputs();
+      teacherMobileMetricKey = teacherMobileSubjectSelect.value;
+      renderTeacherView();
+    });
   }
   if (teacherClassList) {
     teacherClassList.addEventListener('click', handleTeacherClassListClick);
